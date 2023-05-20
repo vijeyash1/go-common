@@ -1,0 +1,31 @@
+name: Publish Go Library
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger the workflow on Git tags starting with 'v'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.19
+
+      - name: Build and publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOPRIVATE: github.com/intelops/go-common
+        run: |
+          # Build the Go library
+          go build -v ./...
+
+          # Publish to GitHub Packages
+          go publish -v github.com/intelops/go-common
+
