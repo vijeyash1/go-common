@@ -3,7 +3,7 @@ name: Publish Go Library
 on:
   push:
     tags:
-      - 'v*' # Trigger the workflow on Git tags starting with 'v'
+      - '1.*' # Trigger the workflow on Git tags starting with 'v'
 
 jobs:
   publish:
