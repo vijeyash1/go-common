@@ -1,9 +1,9 @@
-name: Publish Go Library
+name: Build Go Library
 
 on:
   push:
     tags:
-      - '1.*' # Trigger the workflow on Git tags starting with 'v'
+      - 'v*' # Trigger the workflow on Git tags starting with 'v'
 
 jobs:
   publish:
@@ -25,7 +25,4 @@ jobs:
         run: |
           # Build the Go library
           go build -v ./...
-
-          # Publish to GitHub Packages
-          go publish -v github.com/intelops/go-common
 
