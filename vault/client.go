@@ -13,36 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type ServiceCredentail struct {
-	UserName       string            `json:"userName"`
-	Password       string            `json:"password"`
-	AdditionalData map[string]string `json:"additionalData"`
-}
-
-type CertificateData struct {
-	CACert     string `json:"caCert"`
-	ClientCert string `json:"clientCert"`
-	ClientKey  string `json:"clientKey"`
-}
-
-type ServiceCredentialReader interface {
-	GetServiceCredential(ctx context.Context, userName string, serviceType string) (cred ServiceCredentail, err error)
-	GetClientCertificateData(ctx context.Context, clientID string) (certData CertificateData, err error)
-}
-
-type ServiceCredentialAdmin interface {
-	GetServiceCredential(ctx context.Context, userName string, serviceType string) (cred ServiceCredentail, err error)
-	PutServiceCredential(ctx context.Context, userName string, serviceType string, cred ServiceCredentail) (err error)
-	DeleteServiceCredential(ctx context.Context, userName string, serviceType string) (err error)
-}
-
-type ClientCertAdmin interface {
-	GetClientCertificateData(ctx context.Context, clientID string) (certData CertificateData, err error)
-	PutClientCertificateData(ctx context.Context, clientID string, certData CertificateData) (err error)
-	DeleteClientCertificateData(ctx context.Context, clientID string) (err error)
-}
-
-type VaultEnv struct {
+type vaultEnv struct {
 	Address           string        `envconfig:"VAULT_ADDR" required:"true"`
 	Role              string        `envconfig:"VAULT_ROLE" required:"true"`
 	CACert            string        `envconfig:"VAULT_CACERT" required:"true"`
@@ -55,40 +26,16 @@ type VaultEnv struct {
 }
 
 type client struct {
-	conf *VaultEnv
+	conf *vaultEnv
 	vc   *api.Client
 }
 
-func GetVaultEnv() (*VaultEnv, error) {
-	cfg := &VaultEnv{}
+func getVaultEnv() (*vaultEnv, error) {
+	cfg := &vaultEnv{}
 	if err := envconfig.Process("", cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil
-}
-
-func NewServiceCredentailReader() (c ServiceCredentialReader, err error) {
-	return newClient()
-}
-
-func NewServiceCredentialAdmin() (ServiceCredentialAdmin, error) {
-	return newClient()
-}
-
-func NewClientCertAdmin() (ClientCertAdmin, error) {
-	return newClient()
-}
-
-func MustNewServiceCredentialReader(log logging.Logger) ServiceCredentialReader {
-	return mustNewClient(log)
-}
-
-func MustNewCredentailAdmin(log logging.Logger) ServiceCredentialAdmin {
-	return mustNewClient(log)
-}
-
-func MustNewClientCertAdmin(log logging.Logger) ClientCertAdmin {
-	return mustNewClient(log)
 }
 
 func mustNewClient(log logging.Logger) *client {
@@ -100,7 +47,7 @@ func mustNewClient(log logging.Logger) *client {
 }
 
 func newClient() (c *client, err error) {
-	conf, err := GetVaultEnv()
+	conf, err := getVaultEnv()
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +74,7 @@ func newClient() (c *client, err error) {
 	return
 }
 
-func prepareVaultConfig(conf *VaultEnv) (cfg *api.Config, err error) {
+func prepareVaultConfig(conf *vaultEnv) (cfg *api.Config, err error) {
 	cfg = api.DefaultConfig()
 	cfg.Address = conf.Address
 	cfg.Timeout = conf.ReadTimeout
@@ -138,7 +85,7 @@ func prepareVaultConfig(conf *VaultEnv) (cfg *api.Config, err error) {
 	return
 }
 
-func configureAuthToken(vc *api.Client, conf *VaultEnv) (err error) {
+func configureAuthToken(vc *api.Client, conf *vaultEnv) (err error) {
 	if conf.TokenPath != "" {
 		token, err := readFileContent(conf.TokenPath)
 		if err != nil {
