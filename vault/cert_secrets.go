@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/intelops/go-common/logging"
 	"github.com/pkg/errors"
 )
 
@@ -12,6 +13,26 @@ const (
 	clientCertFileKey = "client.crt"
 	clientKeyFileKey  = "client.key"
 )
+
+type CertificateData struct {
+	CACert     string `json:"caCert"`
+	ClientCert string `json:"clientCert"`
+	ClientKey  string `json:"clientKey"`
+}
+
+type ClientCertAdmin interface {
+	GetClientCertificateData(ctx context.Context, clientID string) (certData CertificateData, err error)
+	PutClientCertificateData(ctx context.Context, clientID string, certData CertificateData) (err error)
+	DeleteClientCertificateData(ctx context.Context, clientID string) (err error)
+}
+
+func NewClientCertAdmin() (ClientCertAdmin, error) {
+	return newClient()
+}
+
+func MustNewClientCertAdmin(log logging.Logger) ClientCertAdmin {
+	return mustNewClient(log)
+}
 
 func (c *client) getCertSecretPath(clientID string) string {
 	return fmt.Sprintf("cert-%s", clientID)

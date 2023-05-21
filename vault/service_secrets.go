@@ -5,12 +5,46 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/intelops/go-common/logging"
 	"github.com/pkg/errors"
 )
 
 const (
 	serviceCredentailDatakey = "SERVICE_USER_CRED"
 )
+
+type ServiceCredentail struct {
+	UserName       string            `json:"userName"`
+	Password       string            `json:"password"`
+	AdditionalData map[string]string `json:"additionalData"`
+}
+
+type ServiceCredentialReader interface {
+	GetServiceCredential(ctx context.Context, userName string, serviceType string) (cred ServiceCredentail, err error)
+	GetClientCertificateData(ctx context.Context, clientID string) (certData CertificateData, err error)
+}
+
+type ServiceCredentialAdmin interface {
+	GetServiceCredential(ctx context.Context, userName string, serviceType string) (cred ServiceCredentail, err error)
+	PutServiceCredential(ctx context.Context, userName string, serviceType string, cred ServiceCredentail) (err error)
+	DeleteServiceCredential(ctx context.Context, userName string, serviceType string) (err error)
+}
+
+func NewServiceCredentailReader() (c ServiceCredentialReader, err error) {
+	return newClient()
+}
+
+func NewServiceCredentialAdmin() (ServiceCredentialAdmin, error) {
+	return newClient()
+}
+
+func MustNewServiceCredentialReader(log logging.Logger) ServiceCredentialReader {
+	return mustNewClient(log)
+}
+
+func MustNewCredentailAdmin(log logging.Logger) ServiceCredentialAdmin {
+	return mustNewClient(log)
+}
 
 func (c *client) getServiceSecretPath(userName string, serviceType string) string {
 	return fmt.Sprintf("%s/%s/%s", c.conf.ServiceSecretPath, serviceType, userName)
