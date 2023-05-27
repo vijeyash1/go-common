@@ -6,6 +6,7 @@ import (
 	"github.com/intelops/go-common/vault-cred-client/vaultcredpb"
 	"github.com/kelseyhightower/envconfig"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type config struct {
@@ -31,7 +32,7 @@ func newClient() (*client, error) {
 		return nil, err
 	}
 
-	conn, err := grpc.Dial(cfg.VaultCredService)
+	conn, err := grpc.Dial(cfg.VaultCredService, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
