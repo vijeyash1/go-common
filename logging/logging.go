@@ -24,6 +24,12 @@ type Logger interface {
 	Audit(auditType, operation, status, user, format string, args ...interface{})
 }
 
+type StdLogger interface {
+	Print(...interface{})
+	Println(...interface{})
+	Printf(string, ...interface{})
+}
+
 type Logging struct {
 }
 
@@ -106,6 +112,33 @@ func (l *Logging) Fatal(format string, args ...interface{}) {
 			"caller": fileDetails,
 		},
 	).Fatal(format, args)
+}
+
+func (l *Logging) Print(args ...interface{}) {
+	fileDetails := l.getFileDetails()
+	logrus.WithFields(
+		logrus.Fields{
+			"caller": fileDetails,
+		},
+	).Print(args)
+}
+
+func (l *Logging) Println(args ...interface{}) {
+	fileDetails := l.getFileDetails()
+	logrus.WithFields(
+		logrus.Fields{
+			"caller": fileDetails,
+		},
+	).Println(args)
+}
+
+func (l *Logging) Printf(format string, args ...interface{}) {
+	fileDetails := l.getFileDetails()
+	logrus.WithFields(
+		logrus.Fields{
+			"caller": fileDetails,
+		},
+	).Printf(format, args)
 }
 
 func (l *Logging) Audit(auditType, operation, status, user, format string, args ...interface{}) {
