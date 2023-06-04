@@ -42,11 +42,11 @@ func NewClientCertAdmin() (ClientCertAdmin, error) {
 
 func (sc *client) GetClientCertificateData(ctx context.Context, clientID string) (ClientCertificateData, error) {
 	request := vaultcredpb.GetCredRequest{
+		ServiceAccountToken: sc.token,
+		VaultRole:           sc.conf.VaultRole,
 		CredentialType:      certCredentialType,
 		CredEntityName:      clientCertEntityName,
 		CredIdentifier:      clientID,
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
 	}
 
 	cred, err := sc.c.GetCred(ctx, &request)
@@ -55,7 +55,7 @@ func (sc *client) GetClientCertificateData(ctx context.Context, clientID string)
 	}
 
 	serviceCred := ClientCertificateData{}
-	for key, val := range cred.Credentail {
+	for key, val := range cred.Credential {
 		if strings.EqualFold(key, caDataKey) {
 			serviceCred.CACert = val
 		} else if strings.EqualFold(key, certDataKey) {
@@ -69,12 +69,12 @@ func (sc *client) GetClientCertificateData(ctx context.Context, clientID string)
 
 func (sc *client) PutClientCertificateData(ctx context.Context, clientID string, certData ClientCertificateData) error {
 	request := vaultcredpb.PutCredRequest{
+		ServiceAccountToken: sc.token,
+		VaultRole:           sc.conf.VaultRole,
 		CredentialType:      certCredentialType,
 		CredEntityName:      clientCertEntityName,
 		CredIdentifier:      clientID,
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
-		Credentail: map[string]string{caDataKey: certData.CACert,
+		Credential: map[string]string{caDataKey: certData.CACert,
 			certDataKey: certData.ClientCert,
 			keyDataKey:  certData.ClientKey},
 	}
@@ -85,11 +85,11 @@ func (sc *client) PutClientCertificateData(ctx context.Context, clientID string,
 
 func (sc *client) DeleteClientCertificateData(ctx context.Context, clientID string) error {
 	request := vaultcredpb.DeleteCredRequest{
+		ServiceAccountToken: sc.token,
+		VaultRole:           sc.conf.VaultRole,
 		CredentialType:      certCredentialType,
 		CredEntityName:      clientCertEntityName,
 		CredIdentifier:      clientID,
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
 	}
 
 	_, err := sc.c.DeleteCred(ctx, &request)
