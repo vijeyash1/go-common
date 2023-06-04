@@ -40,11 +40,11 @@ func NewServiceCredentailAdmin() (c ServiceCredentialAdmin, err error) {
 
 func (sc *client) GetServiceCredential(ctx context.Context, userName string, entityName string) (ServiceCredentail, error) {
 	request := vaultcredpb.GetCredRequest{
+		ServiceAccountToken: sc.token,
+		VaultRole:           sc.conf.VaultRole,
 		CredentialType:      serviceCredentialType,
 		CredEntityName:      entityName,
 		CredIdentifier:      userName,
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
 	}
 
 	cred, err := sc.c.GetCred(ctx, &request)
@@ -56,7 +56,7 @@ func (sc *client) GetServiceCredential(ctx context.Context, userName string, ent
 		AdditionalData: map[string]string{},
 	}
 
-	for key, val := range cred.Credentail {
+	for key, val := range cred.Credential {
 		if strings.EqualFold(key, serviceCredentialUserNameKey) {
 			serviceCred.UserName = val
 		} else if strings.EqualFold(key, serviceCredentialPasswordKey) {
@@ -70,17 +70,17 @@ func (sc *client) GetServiceCredential(ctx context.Context, userName string, ent
 
 func (sc *client) PutServiceCredential(ctx context.Context, userName string, entityName string, serviceCred ServiceCredentail) error {
 	request := vaultcredpb.PutCredRequest{
+		ServiceAccountToken: sc.token,
+		VaultRole:           sc.conf.VaultRole,
 		CredentialType:      serviceCredentialType,
 		CredEntityName:      entityName,
 		CredIdentifier:      userName,
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
-		Credentail: map[string]string{serviceCredentialUserNameKey: serviceCred.UserName,
+		Credential: map[string]string{serviceCredentialUserNameKey: serviceCred.UserName,
 			serviceCredentialPasswordKey: serviceCred.Password},
 	}
 
 	for key, val := range serviceCred.AdditionalData {
-		request.Credentail[key] = val
+		request.Credential[key] = val
 	}
 
 	_, err := sc.c.PutCred(ctx, &request)
@@ -89,11 +89,11 @@ func (sc *client) PutServiceCredential(ctx context.Context, userName string, ent
 
 func (sc *client) DeleteServiceCredential(ctx context.Context, entityName string, userName string) error {
 	request := vaultcredpb.DeleteCredRequest{
+		ServiceAccountToken: sc.token,
+		VaultRole:           sc.conf.VaultRole,
 		CredentialType:      serviceCredentialType,
 		CredEntityName:      entityName,
 		CredIdentifier:      userName,
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
 	}
 	_, err := sc.c.DeleteCred(ctx, &request)
 	return err
