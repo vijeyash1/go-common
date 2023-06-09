@@ -12,6 +12,9 @@ const (
 
 	serviceCredentialUserNameKey = "userName"
 	serviceCredentialPasswordKey = "password"
+
+	vaultRoleKey    string = "vault-role"
+	serviceTokenKey string = "service-token"
 )
 
 type ServiceCredentail struct {
@@ -40,11 +43,9 @@ func NewServiceCredentailAdmin() (c ServiceCredentialAdmin, err error) {
 
 func (sc *client) GetServiceCredential(ctx context.Context, userName string, entityName string) (ServiceCredentail, error) {
 	request := vaultcredpb.GetCredRequest{
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
-		CredentialType:      serviceCredentialType,
-		CredEntityName:      entityName,
-		CredIdentifier:      userName,
+		CredentialType: serviceCredentialType,
+		CredEntityName: entityName,
+		CredIdentifier: userName,
 	}
 
 	cred, err := sc.c.GetCred(ctx, &request)
@@ -70,11 +71,9 @@ func (sc *client) GetServiceCredential(ctx context.Context, userName string, ent
 
 func (sc *client) PutServiceCredential(ctx context.Context, userName string, entityName string, serviceCred ServiceCredentail) error {
 	request := vaultcredpb.PutCredRequest{
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
-		CredentialType:      serviceCredentialType,
-		CredEntityName:      entityName,
-		CredIdentifier:      userName,
+		CredentialType: serviceCredentialType,
+		CredEntityName: entityName,
+		CredIdentifier: userName,
 		Credential: map[string]string{serviceCredentialUserNameKey: serviceCred.UserName,
 			serviceCredentialPasswordKey: serviceCred.Password},
 	}
@@ -89,11 +88,9 @@ func (sc *client) PutServiceCredential(ctx context.Context, userName string, ent
 
 func (sc *client) DeleteServiceCredential(ctx context.Context, entityName string, userName string) error {
 	request := vaultcredpb.DeleteCredRequest{
-		ServiceAccountToken: sc.token,
-		VaultRole:           sc.conf.VaultRole,
-		CredentialType:      serviceCredentialType,
-		CredEntityName:      entityName,
-		CredIdentifier:      userName,
+		CredentialType: serviceCredentialType,
+		CredEntityName: entityName,
+		CredIdentifier: userName,
 	}
 	_, err := sc.c.DeleteCred(ctx, &request)
 	return err

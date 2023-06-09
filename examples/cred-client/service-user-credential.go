@@ -18,6 +18,13 @@ func main() {
 		fmt.Printf("init %v\n", err)
 		return
 	}
+
+	svcReadClient, err := vaultcredclient.NewServiceCredentailReader()
+	if err != nil {
+		fmt.Printf("init %v\n", err)
+		return
+	}
+
 	err = svcAdmin.PutServiceCredential(context.Background(), "test", "db", vaultcredclient.ServiceCredentail{
 		UserName: "venkat",
 		Password: "reddy",
@@ -27,11 +34,6 @@ func main() {
 		return
 	}
 
-	svcReadClient, err := vaultcredclient.NewServiceCredentailReader()
-	if err != nil {
-		fmt.Printf("init %v\n", err)
-		return
-	}
 	svcCred, err := svcReadClient.GetServiceCredential(context.Background(), "test", "db")
 	if err != nil {
 		fmt.Printf("%v\n", err)

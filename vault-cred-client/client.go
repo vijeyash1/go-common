@@ -1,12 +1,15 @@
 package vaultcredclient
 
 import (
+	"context"
+	"encoding/base64"
 	"os"
 
 	"github.com/intelops/go-common/vault-cred-client/vaultcredpb"
 	"github.com/kelseyhightower/envconfig"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type config struct {
@@ -32,7 +35,9 @@ func newClient() (*client, error) {
 		return nil, err
 	}
 
-	conn, err := grpc.Dial(cfg.VaultCredService, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(cfg.VaultCredService,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(interceptVaultAuth))
 	if err != nil {
 		return nil, err
 	}
@@ -48,4 +53,18 @@ func readFileContent(path string) (s string, err error) {
 	}
 	s = string(b)
 	return
+}
+
+func interceptVaultAuth(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	cfg := config{}
+	if err := envconfig.Process("", &cfg); err != nil {
+		return err
+	}
+	token, err := readFileContent(cfg.ServiceAccoutTokenPath)
+	if err != nil {
+		return err
+	}
+	updatedCtx := metadata.AppendToOutgoingContext(ctx, vaultRoleKey, cfg.VaultRole,
+		serviceTokenKey, base64.StdEncoding.EncodeToString([]byte(token)))
+	return invoker(updatedCtx, method, req, reply, cc, opts...)
 }
