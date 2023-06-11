@@ -24,13 +24,13 @@ type ServiceCredentail struct {
 }
 
 type ServiceCredentialReader interface {
-	GetServiceCredential(ctx context.Context, userName string, entityName string) (cred ServiceCredentail, err error)
+	GetServiceCredential(ctx context.Context, svcEntity, userName string) (cred ServiceCredentail, err error)
 }
 
 type ServiceCredentialAdmin interface {
-	GetServiceCredential(ctx context.Context, userName string, entityName string) (cred ServiceCredentail, err error)
-	PutServiceCredential(ctx context.Context, userName string, entityName string, cred ServiceCredentail) (err error)
-	DeleteServiceCredential(ctx context.Context, userName string, entityName string) (err error)
+	GetServiceCredential(ctx context.Context, svcEntity, userName string) (cred ServiceCredentail, err error)
+	PutServiceCredential(ctx context.Context, svcEntity, userName string, cred ServiceCredentail) (err error)
+	DeleteServiceCredential(ctx context.Context, svcEntity, userName string) (err error)
 }
 
 func NewServiceCredentailReader() (c ServiceCredentialReader, err error) {
@@ -41,10 +41,10 @@ func NewServiceCredentailAdmin() (c ServiceCredentialAdmin, err error) {
 	return newClient()
 }
 
-func (sc *client) GetServiceCredential(ctx context.Context, userName string, entityName string) (ServiceCredentail, error) {
+func (sc *client) GetServiceCredential(ctx context.Context, svcEntity, userName string) (ServiceCredentail, error) {
 	request := vaultcredpb.GetCredRequest{
 		CredentialType: serviceCredentialType,
-		CredEntityName: entityName,
+		CredEntityName: svcEntity,
 		CredIdentifier: userName,
 	}
 
@@ -69,10 +69,10 @@ func (sc *client) GetServiceCredential(ctx context.Context, userName string, ent
 	return serviceCred, nil
 }
 
-func (sc *client) PutServiceCredential(ctx context.Context, userName string, entityName string, serviceCred ServiceCredentail) error {
+func (sc *client) PutServiceCredential(ctx context.Context, svcEntity, userName string, serviceCred ServiceCredentail) error {
 	request := vaultcredpb.PutCredRequest{
 		CredentialType: serviceCredentialType,
-		CredEntityName: entityName,
+		CredEntityName: svcEntity,
 		CredIdentifier: userName,
 		Credential: map[string]string{serviceCredentialUserNameKey: serviceCred.UserName,
 			serviceCredentialPasswordKey: serviceCred.Password},
@@ -86,10 +86,10 @@ func (sc *client) PutServiceCredential(ctx context.Context, userName string, ent
 	return err
 }
 
-func (sc *client) DeleteServiceCredential(ctx context.Context, entityName string, userName string) error {
+func (sc *client) DeleteServiceCredential(ctx context.Context, svcEntity, userName string) error {
 	request := vaultcredpb.DeleteCredRequest{
 		CredentialType: serviceCredentialType,
-		CredEntityName: entityName,
+		CredEntityName: svcEntity,
 		CredIdentifier: userName,
 	}
 	_, err := sc.c.DeleteCred(ctx, &request)

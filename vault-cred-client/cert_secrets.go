@@ -8,82 +8,86 @@ import (
 )
 
 const (
+	certCredentialType = "certs"
+
+	CaptenClusterCert  = "capten-cluster"
+	CustomerClientCert = "customer-client"
+)
+
+const (
 	caDataKey   = "ca.pem"
 	certDataKey = "cert.crt"
 	keyDataKey  = "key.key"
-
-	certCredentialType   = "certs"
-	clientCertEntityName = "client"
 )
 
-type ClientCertificateData struct {
-	CACert     string `json:"caCert"`
-	ClientCert string `json:"clientCert"`
-	ClientKey  string `json:"clientKey"`
+type CertificateData struct {
+	CACert string `json:"caCert"`
+	Key    string `json:"key"`
+	Cert   string `json:"cert"`
 }
 
-type ClientCertReader interface {
-	GetClientCertificateData(ctx context.Context, clientID string) (certData ClientCertificateData, err error)
+type CertificateReader interface {
+	GetCertificate(ctx context.Context, certEntity, certIdentity string) (certData CertificateData, err error)
 }
 
-type ClientCertAdmin interface {
-	GetClientCertificateData(ctx context.Context, clientID string) (certData ClientCertificateData, err error)
-	PutClientCertificateData(ctx context.Context, clientID string, certData ClientCertificateData) (err error)
-	DeleteClientCertificateData(ctx context.Context, clientID string) (err error)
+type CertificateAdmin interface {
+	GetCertificate(ctx context.Context, certEntity, certIdentity string) (certData CertificateData, err error)
+	StoreCertificate(ctx context.Context, certEntity, certIdentity string, certData CertificateData) (err error)
+	DeleteCertificate(ctx context.Context, certEntity, certIdentity string) (err error)
 }
 
-func NewClientCertReader() (ClientCertReader, error) {
+func NewCertificateReader() (CertificateReader, error) {
 	return newClient()
 }
 
-func NewClientCertAdmin() (ClientCertAdmin, error) {
+func NewCertificateAdmin() (CertificateAdmin, error) {
 	return newClient()
 }
 
-func (sc *client) GetClientCertificateData(ctx context.Context, clientID string) (ClientCertificateData, error) {
+func (sc *client) GetCertificate(ctx context.Context, certEntity, certIdentity string) (CertificateData, error) {
 	request := vaultcredpb.GetCredRequest{
 		CredentialType: certCredentialType,
-		CredEntityName: clientCertEntityName,
-		CredIdentifier: clientID,
+		CredEntityName: certEntity,
+		CredIdentifier: certIdentity,
 	}
 
 	cred, err := sc.c.GetCred(ctx, &request)
 	if err != nil {
-		return ClientCertificateData{}, err
+		return CertificateData{}, err
 	}
 
-	serviceCred := ClientCertificateData{}
+	serviceCred := CertificateData{}
 	for key, val := range cred.Credential {
 		if strings.EqualFold(key, caDataKey) {
 			serviceCred.CACert = val
 		} else if strings.EqualFold(key, certDataKey) {
-			serviceCred.ClientCert = val
+			serviceCred.Cert = val
 		} else if strings.EqualFold(key, keyDataKey) {
-			serviceCred.ClientKey = val
+			serviceCred.Key = val
 		}
 	}
 	return serviceCred, nil
 }
 
-func (sc *client) PutClientCertificateData(ctx context.Context, clientID string, certData ClientCertificateData) error {
+func (sc *client) StoreCertificate(ctx context.Context, certEntity, certIdentity string, certData CertificateData) error {
 	request := vaultcredpb.PutCredRequest{
 		CredentialType: certCredentialType,
-		CredEntityName: clientCertEntityName,
-		CredIdentifier: clientID,
+		CredEntityName: certEntity,
+		CredIdentifier: certIdentity,
 		Credential: map[string]string{caDataKey: certData.CACert,
-			certDataKey: certData.ClientCert,
-			keyDataKey:  certData.ClientKey},
+			certDataKey: certData.Cert,
+			keyDataKey:  certData.Key},
 	}
 
 	_, err := sc.c.PutCred(ctx, &request)
 	return err
 }
 
-func (sc *client) DeleteClientCertificateData(ctx context.Context, clientID string) error {
+func (sc *client) DeleteCertificate(ctx context.Context, certEntity, certIdentity string) error {
 	request := vaultcredpb.DeleteCredRequest{
 		CredentialType: certCredentialType,
-		CredEntityName: clientCertEntityName,
-		CredIdentifier: clientID,
+		CredEntityName: certEntity,
+		CredIdentifier: certIdentity,
 	}
 
 	_, err := sc.c.DeleteCred(ctx, &request)
