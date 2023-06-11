@@ -15,11 +15,11 @@ type Logger interface {
 	Errorf(format string, args ...interface{})
 	Fatalf(format string, args ...interface{})
 
-	Info(args ...interface{})
-	Warn(args ...interface{})
-	Debug(args ...interface{})
-	Error(args ...interface{})
-	Fatal(args ...interface{})
+	Info(format string, args ...interface{})
+	Warn(format string, args ...interface{})
+	Debug(format string, args ...interface{})
+	Error(format string, args ...interface{})
+	Fatal(format string, args ...interface{})
 
 	Audit(auditType, operation, status, user, format string, args ...interface{})
 }
@@ -69,51 +69,49 @@ func (l *Logging) Fatalf(format string, args ...interface{}) {
 	).Fatalf(format, args...)
 }
 
-func (l *Logging) Info(args ...interface{}) {
+func (l *Logging) Info(format string, args ...interface{}) {
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Info(args)
-
-	logrus.Info(args)
+	).Info(format, args)
 }
 
-func (l *Logging) Warn(args ...interface{}) {
+func (l *Logging) Warn(format string, args ...interface{}) {
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Info(args)
+	).Info(format, args)
 }
 
-func (l *Logging) Debug(args ...interface{}) {
+func (l *Logging) Debug(format string, args ...interface{}) {
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Debug(args)
+	).Debug(format, args)
 }
 
-func (l *Logging) Error(args ...interface{}) {
+func (l *Logging) Error(format string, args ...interface{}) {
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Error(args)
+	).Error(format, args)
 }
 
-func (l *Logging) Fatal(args ...interface{}) {
+func (l *Logging) Fatal(format string, args ...interface{}) {
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Fatal(args)
+	).Fatal(format, args)
 }
 
 func (l *Logging) Print(args ...interface{}) {
