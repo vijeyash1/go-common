@@ -2,8 +2,10 @@ package logging
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -70,48 +72,63 @@ func (l *Logging) Fatalf(format string, args ...interface{}) {
 }
 
 func (l *Logging) Info(format string, args ...interface{}) {
+	if len(args) > 0 {
+		format = fmt.Sprintf("%s %v", format, args)
+	}
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Info(format, args)
+	).Info(format)
 }
 
 func (l *Logging) Warn(format string, args ...interface{}) {
+	if len(args) > 0 {
+		format = fmt.Sprintf("%s %v", format, args)
+	}
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Info(format, args)
+	).Warn(format)
 }
 
 func (l *Logging) Debug(format string, args ...interface{}) {
+	if len(args) > 0 {
+		format = fmt.Sprintf("%s %v", format, args)
+	}
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Debug(format, args)
+	).Debug(format)
 }
 
 func (l *Logging) Error(format string, args ...interface{}) {
+	if len(args) > 0 {
+		format = fmt.Sprintf("%s %v", format, args)
+	}
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Error(format, args)
+	).Error(format)
 }
 
 func (l *Logging) Fatal(format string, args ...interface{}) {
+	if len(args) > 0 {
+		format = fmt.Sprintf("%s %v", format, args)
+	}
 	fileDetails := l.getFileDetails()
 	logrus.WithFields(
 		logrus.Fields{
 			"caller": fileDetails,
 		},
-	).Fatal(format, args)
+	).Fatal(format)
 }
 
 func (l *Logging) Print(args ...interface{}) {
@@ -160,10 +177,24 @@ func (*Logging) getFileDetails() string {
 }
 
 func NewLogger() Logger {
-	logrus.SetLevel(logrus.InfoLevel)
+	logrus.SetLevel(getLogLevel())
 	// logrus.SetReportCaller(true)
 	logrus.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: time.RFC3339,
 	})
 	return &Logging{}
+}
+
+func getLogLevel() (loglevel logrus.Level) {
+	level := os.Getenv("LOG_LEVEL")
+	loglevel = logrus.InfoLevel
+	switch strings.ToLower(level) {
+	case "info", "":
+		loglevel = logrus.InfoLevel
+	case "debug":
+		loglevel = logrus.DebugLevel
+	case "error":
+		loglevel = logrus.ErrorLevel
+	}
+	return loglevel
 }
