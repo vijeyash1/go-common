@@ -18,4 +18,25 @@ func main() {
 	log.Debug("test debug")
 	log.Debugf("test debug %s", "arg1")
 
+	log.Debugf("test debug %s", logging.MaskString("arg1"))
+	log.Debugf("test debug %s", logging.MaskString(""))
+
+	u := struct {
+		ID      string // no tag
+		Name    string
+		Token   string
+		ExtData map[string]string
+	}{
+		ID:    "1",
+		Name:  "testuser",
+		Token: "valtokne",
+		ExtData: map[string]string{
+			"Email": "test@com",
+		},
+	}
+
+	logging.RegisterMaskField("Token")
+	logging.RegisterMaskField("Email")
+	mu, _ := logging.Mask(u)
+	log.Debugf("%v", mu)
 }
