@@ -7,61 +7,55 @@ import (
 )
 
 const (
-	genericCredentialType = "cluster-cred"
+	genericCredentialType = "generic"
 )
 
-type GerericCredentail struct {
-	Credential map[string]string `json:"credential"`
+type CredentialReader interface {
+	GetCredential(ctx context.Context, entityName, credIdentifier string) (map[string]string, error)
 }
 
-type GenericCredentialReader interface {
-	GetGenericCredential(ctx context.Context, svcEntity, userName string) (cred GerericCredentail, err error)
+type CredentialAdmin interface {
+	GetCredential(ctx context.Context, entityName, credIdentifier string) (map[string]string, error)
+	PutCredential(ctx context.Context, entityName, credIdentifier string, credential map[string]string) error
+	DeleteCredential(ctx context.Context, entityName, credIdentifier string) error
 }
 
-type GerericCredentialAdmin interface {
-	GetGenericCredential(ctx context.Context, svcEntity, userName string) (cred GerericCredentail, err error)
-	PutGenericCredential(ctx context.Context, svcEntity, userName string, cred GerericCredentail) (err error)
-	DeleteGerericCredential(ctx context.Context, svcEntity, userName string) (err error)
-}
-
-func NewGenericCredentailReader() (c GenericCredentialReader, err error) {
+func NewGenericCredentailReader() (c CredentialReader, err error) {
 	return newClient()
 }
 
-func NewGerericCredentailAdmin() (c GerericCredentialAdmin, err error) {
+func NewGerericCredentailAdmin() (c CredentialAdmin, err error) {
 	return newClient()
 }
 
-func (sc *client) GetGenericCredential(ctx context.Context, genericEntity, credIdentifier string) (GerericCredentail, error) {
+func (sc *client) GetCredential(ctx context.Context, entityName, credIdentifier string) (map[string]string, error) {
 	request := vaultcredpb.GetCredRequest{
 		CredentialType: genericCredentialType,
-		CredEntityName: genericEntity,
+		CredEntityName: entityName,
 		CredIdentifier: credIdentifier,
 	}
 
 	cred, err := sc.c.GetCred(ctx, &request)
 	if err != nil {
-		return GerericCredentail{}, err
+		return nil, err
 	}
 
-	gerericCred := GerericCredentail{
-		Credential: map[string]string{},
-	}
-
+	credential := map[string]string{}
 	for key, val := range cred.Credential {
-		gerericCred.Credential[key] = val
+		credential[key] = val
 	}
-	return gerericCred, nil
+	return credential, nil
 }
 
-func (sc *client) PutGenericCredential(ctx context.Context, genericEntity, credIdentifier string, genericCred GerericCredentail) error {
+func (sc *client) PutCredential(ctx context.Context, entityName, credIdentifier string, credential map[string]string) error {
 	request := vaultcredpb.PutCredRequest{
 		CredentialType: genericCredentialType,
-		CredEntityName: genericEntity,
+		CredEntityName: entityName,
 		CredIdentifier: credIdentifier,
+		Credential:     map[string]string{},
 	}
 
-	for key, val := range genericCred.Credential {
+	for key, val := range credential {
 		request.Credential[key] = val
 	}
 
@@ -69,10 +63,10 @@ func (sc *client) PutGenericCredential(ctx context.Context, genericEntity, credI
 	return err
 }
 
-func (sc *client) DeleteGerericCredential(ctx context.Context, genericEntity, credIdentifier string) error {
+func (sc *client) DeleteCredential(ctx context.Context, entityName, credIdentifier string) error {
 	request := vaultcredpb.DeleteCredRequest{
-		CredentialType: serviceCredentialType,
-		CredEntityName: genericEntity,
+		CredentialType: genericCredentialType,
+		CredEntityName: entityName,
 		CredIdentifier: credIdentifier,
 	}
 	_, err := sc.c.DeleteCred(ctx, &request)
