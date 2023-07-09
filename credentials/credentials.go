@@ -19,7 +19,7 @@ const (
 	keyDataKey  = "tls.key"
 )
 
-type ServiceCredentail struct {
+type ServiceCredential struct {
 	UserName       string            `json:"userName"`
 	Password       string            `json:"password"`
 	AdditionalData map[string]string `json:"additionalData"`
@@ -33,26 +33,26 @@ type CertificateData struct {
 
 type CredentialReader interface {
 	GetCredential(ctx context.Context, credentialType, entityName, credentialIdentifier string) (map[string]string, error)
-	GetServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string) (ServiceCredentail, error)
+	GetServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string) (ServiceCredential, error)
 	GetCertificateData(ctx context.Context, entityName, credentialIdentifier string) (CertificateData, error)
 }
 
 type CredentialAdmin interface {
 	GetCredential(ctx context.Context, credentialType, entityName, credentialIdentifier string) (map[string]string, error)
-	GetServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string) (ServiceCredentail, error)
+	GetServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string) (ServiceCredential, error)
 	PutCredential(ctx context.Context, credentialType, entityName, credentialIdentifier string, credential map[string]string) error
-	PutServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string, serviceUserCred ServiceCredentail) error
+	PutServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string, serviceUserCred ServiceCredential) error
 	PutCertificateData(ctx context.Context, entityName, credentialIdentifier string, certData CertificateData) error
 	DeleteCredential(ctx context.Context, credentialType, entityName, credentialIdentifier string) error
 	DeleteServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string) error
 	DeleteCertificateData(ctx context.Context, entityName, credentialIdentifier string) error
 }
 
-func NewCredentailReader(ctx context.Context) (c CredentialReader, err error) {
+func NewCredentialReader(ctx context.Context) (c CredentialReader, err error) {
 	return newClientWithAuth(ctx)
 }
 
-func NewCredentailAdmin(ctx context.Context) (c CredentialAdmin, err error) {
+func NewCredentialAdmin(ctx context.Context) (c CredentialAdmin, err error) {
 	return newClientWithAuth(ctx)
 }
 
@@ -70,7 +70,7 @@ func (vc *client) PutCredential(ctx context.Context, credentialType, entityName,
 	var err error
 	switch credentialType {
 	case ServiceUserCredentialType:
-		_, err = ParseServiceCredentail(credential)
+		_, err = ParseServiceCredential(credential)
 	case CertCredentialType:
 		_, err = ParseCertificateData(credential)
 	}
@@ -85,18 +85,18 @@ func (vc *client) DeleteCredential(ctx context.Context, credentialType, entityNa
 	return vc.deleteCredential(ctx, secretPath)
 }
 
-func (vc *client) GetServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string) (ServiceCredentail, error) {
+func (vc *client) GetServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string) (ServiceCredential, error) {
 	secretPath := prepareCredentialSecretPath(ServiceUserCredentialType, entityName, credentialIdentifier)
 	credential, err := vc.getCredential(ctx, secretPath)
 	if err != nil {
-		return ServiceCredentail{}, err
+		return ServiceCredential{}, err
 	}
-	return ParseServiceCredentail(credential)
+	return ParseServiceCredential(credential)
 }
 
-func (vc *client) PutServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string, serviceUserCred ServiceCredentail) error {
+func (vc *client) PutServiceUserCredential(ctx context.Context, entityName, credentialIdentifier string, serviceUserCred ServiceCredential) error {
 	secretPath := prepareCredentialSecretPath(ServiceUserCredentialType, entityName, credentialIdentifier)
-	credential := PrepareServiceCredentailMap(serviceUserCred)
+	credential := PrepareServiceCredentialMap(serviceUserCred)
 	return vc.putCredential(ctx, secretPath, credential)
 }
 
@@ -125,7 +125,7 @@ func (vc *client) DeleteCertificateData(ctx context.Context, entityName, credent
 	return vc.deleteCredential(ctx, secretPath)
 }
 
-func PrepareServiceCredentailMap(serviceUserCred ServiceCredentail) map[string]string {
+func PrepareServiceCredentialMap(serviceUserCred ServiceCredential) map[string]string {
 	credential := map[string]string{
 		serviceCredentialUserNameKey: serviceUserCred.UserName,
 		serviceCredentialPasswordKey: serviceUserCred.Password}
@@ -136,8 +136,8 @@ func PrepareServiceCredentailMap(serviceUserCred ServiceCredentail) map[string]s
 	return credential
 }
 
-func ParseServiceCredentail(credential map[string]string) (ServiceCredentail, error) {
-	serviceUserCred := ServiceCredentail{
+func ParseServiceCredential(credential map[string]string) (ServiceCredential, error) {
+	serviceUserCred := ServiceCredential{
 		AdditionalData: map[string]string{},
 	}
 

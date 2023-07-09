@@ -149,7 +149,7 @@ func (vc *client) putCredential(ctx context.Context, secretPath string, cred map
 	}
 	_, err = vc.c.KVv2(vc.conf.VaultKVMountPath).Put(ctx, secretPath, credData)
 	if err != nil {
-		err = errors.WithMessagef(err, "error in putting credentail at %s", secretPath)
+		err = errors.WithMessagef(err, "error in putting credential at %s", secretPath)
 	}
 	return
 }
@@ -157,7 +157,7 @@ func (vc *client) putCredential(ctx context.Context, secretPath string, cred map
 func (vc *client) deleteCredential(ctx context.Context, secretPath string) (err error) {
 	err = vc.c.KVv2(vc.conf.VaultKVMountPath).Delete(ctx, secretPath)
 	if err != nil {
-		err = errors.WithMessagef(err, "error in deleting credentail at %s", secretPath)
+		err = errors.WithMessagef(err, "error in deleting credential at %s", secretPath)
 	}
 	return
 }
