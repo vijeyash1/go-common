@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	ServiceUserCredentialType = "service-cred"
-	CertCredentialType        = "certs"
+	ServiceUserCredentialType    = "service-cred"
+	CertCredentialType           = "certs"
+	ClusterGenericCredentialType = "cluster-cred"
 
 	serviceCredentialUserNameKey = "userName"
 	serviceCredentialPasswordKey = "password"
@@ -149,7 +150,7 @@ func ParseServiceCredential(credential map[string]string) (ServiceCredential, er
 			foundUserKey = true
 		} else if strings.EqualFold(key, serviceCredentialPasswordKey) {
 			serviceUserCred.Password = val
-			foundPasswordKey = false
+			foundPasswordKey = true
 		} else {
 			serviceUserCred.AdditionalData[key] = val
 		}
