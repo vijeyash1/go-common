@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	ServiceUserCredentialType    = "service-cred"
-	CertCredentialType           = "certs"
-	ClusterGenericCredentialType = "cluster-cred"
+	ServiceUserCredentialType = "service-cred"
+	CertCredentialType        = "certs"
+	GenericCredentialType     = "generic"
 
 	serviceCredentialUserNameKey = "userName"
 	serviceCredentialPasswordKey = "password"
