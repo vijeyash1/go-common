@@ -57,10 +57,18 @@ message UpdateServiceVersionResponse {
     bool success = 1;
 
 }
-
+message CreateServiceRequest {
+    string serviceName = 1;
+    string serviceDescription = 2; // Optional, based on your requirements
+}
+message CreateServiceResponse {
+    string id = 1; // ID of the created service
+    bool success = 2; // Indicates if the service creation was successful
+}
 service CommonModule {
     rpc RegisterActions(RegisterActionsRequest)returns(RegisterActionsResponse);
     rpc RegisterRoles(RegisterRolesRequest)returns(RegisterRolesResponse);
     rpc FetchServiceByName(FetchServiceByNameRequest)returns(FetchServiceByNameResponse);
     rpc UpdateServiceVersion(UpdateServiceVersionRequest) returns (UpdateServiceVersionResponse);
+    rpc CreateServiceModule(CreateServiceRequest) returns (CreateServiceResponse);
 }

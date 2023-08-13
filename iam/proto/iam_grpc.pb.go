@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.12
-// source: iam/proto/iam.proto
+// source: proto/commonmoduleproto/cm.proto
 
 package cmproto
 
@@ -26,6 +26,7 @@ type CommonModuleClient interface {
 	RegisterRoles(ctx context.Context, in *RegisterRolesRequest, opts ...grpc.CallOption) (*RegisterRolesResponse, error)
 	FetchServiceByName(ctx context.Context, in *FetchServiceByNameRequest, opts ...grpc.CallOption) (*FetchServiceByNameResponse, error)
 	UpdateServiceVersion(ctx context.Context, in *UpdateServiceVersionRequest, opts ...grpc.CallOption) (*UpdateServiceVersionResponse, error)
+	CreateServiceModule(ctx context.Context, in *CreateServiceRequest, opts ...grpc.CallOption) (*CreateServiceResponse, error)
 }
 
 type commonModuleClient struct {
@@ -72,6 +73,15 @@ func (c *commonModuleClient) UpdateServiceVersion(ctx context.Context, in *Updat
 	return out, nil
 }
 
+func (c *commonModuleClient) CreateServiceModule(ctx context.Context, in *CreateServiceRequest, opts ...grpc.CallOption) (*CreateServiceResponse, error) {
+	out := new(CreateServiceResponse)
+	err := c.cc.Invoke(ctx, "/CmService.CommonModule/CreateServiceModule", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommonModuleServer is the server API for CommonModule service.
 // All implementations must embed UnimplementedCommonModuleServer
 // for forward compatibility
@@ -80,6 +90,7 @@ type CommonModuleServer interface {
 	RegisterRoles(context.Context, *RegisterRolesRequest) (*RegisterRolesResponse, error)
 	FetchServiceByName(context.Context, *FetchServiceByNameRequest) (*FetchServiceByNameResponse, error)
 	UpdateServiceVersion(context.Context, *UpdateServiceVersionRequest) (*UpdateServiceVersionResponse, error)
+	CreateServiceModule(context.Context, *CreateServiceRequest) (*CreateServiceResponse, error)
 	mustEmbedUnimplementedCommonModuleServer()
 }
 
@@ -98,6 +109,9 @@ func (UnimplementedCommonModuleServer) FetchServiceByName(context.Context, *Fetc
 }
 func (UnimplementedCommonModuleServer) UpdateServiceVersion(context.Context, *UpdateServiceVersionRequest) (*UpdateServiceVersionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateServiceVersion not implemented")
+}
+func (UnimplementedCommonModuleServer) CreateServiceModule(context.Context, *CreateServiceRequest) (*CreateServiceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateServiceModule not implemented")
 }
 func (UnimplementedCommonModuleServer) mustEmbedUnimplementedCommonModuleServer() {}
 
@@ -184,6 +198,24 @@ func _CommonModule_UpdateServiceVersion_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CommonModule_CreateServiceModule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommonModuleServer).CreateServiceModule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/CmService.CommonModule/CreateServiceModule",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommonModuleServer).CreateServiceModule(ctx, req.(*CreateServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CommonModule_ServiceDesc is the grpc.ServiceDesc for CommonModule service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -207,7 +239,11 @@ var CommonModule_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "UpdateServiceVersion",
 			Handler:    _CommonModule_UpdateServiceVersion_Handler,
 		},
+		{
+			MethodName: "CreateServiceModule",
+			Handler:    _CommonModule_CreateServiceModule_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "iam/proto/iam.proto",
+	Metadata: "proto/commonmoduleproto/cm.proto",
 }

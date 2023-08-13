@@ -20,8 +20,7 @@ func main() {
 	iamConn := cm.NewIamConn(
 		cm.WithGrpcDialOption(grpcOpts...),
 		cm.WithIamAddress("localhost:3001"),
-		cm.WithServiceName("service1"),
-		cm.WithIamYamlPath("provide the yaml location here"),
+		cm.WithIamYamlPath("provide the yaml location here"), // Ensure to provide the correct path to your YAML configuration
 	)
 
 	// Update action roles
@@ -29,5 +28,4 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to update action roles: %v", err)
 	}
-
 }

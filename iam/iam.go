@@ -29,10 +29,11 @@ type Role struct {
 }
 
 type ActionRolePayload struct {
-	Version   int32    `yaml:"version"`
-	ServiceID string   `yaml:"serviceid"`
-	Actions   []Action `yaml:"actions"`
-	Roles     []Role   `yaml:"roles"`
+	Version            int32    `yaml:"version"`
+	ServiceName        string   `yaml:"servicename"`
+	ServiceDescription string   `yaml:"servicedescription"`
+	Actions            []Action `yaml:"actions"`
+	Roles              []Role   `yaml:"roles"`
 }
 
 type IamConnOptions func(*IamConn)
@@ -70,12 +71,6 @@ func WithIamAddress(iamaddress string) IamConnOptions {
 	}
 }
 
-func WithServiceName(serviceName string) IamConnOptions {
-	return func(iamConn *IamConn) {
-		iamConn.ServiceName = serviceName
-	}
-}
-
 func NewIamConn(opts ...IamConnOptions) *IamConn {
 	logger := logging.NewLogger()
 	iamConn := &IamConn{
@@ -99,26 +94,55 @@ func WithIamYamlPath(path string) IamConnOptions {
 	}
 }
 
-func (iamConn *IamConn) verifyVersion() (*ActionRolePayload, bool, error) {
+func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, error) {
 	config := &ActionRolePayload{}
 	err := iamConn.readConfig(config)
 	if err != nil {
 		iamConn.Logger.Errorf("Error reading config file: %v", err)
+		return "", nil, false, err
 	}
+
 	ctx := context.Background()
 	resp, err := iamConn.IAMClient.IC.FetchServiceByName(ctx, &cmpb.FetchServiceByNameRequest{
-		Name: iamConn.ServiceName,
+		Name: config.ServiceName, // Use the ServiceName from the config
 	})
+
 	if err != nil {
-		iamConn.Logger.Errorf("Error occured while fetching service by name from IAMCLIENT: %v", err)
-		return nil, false, err
+		iamConn.Logger.Errorf("Error occurred while fetching service by name from IAMCLIENT: %v", err)
+		return "", nil, false, err
 	}
+
+	var serviceID string
+	if resp == nil || resp.Id == "" {
+		// Create a new service if it doesn't exist
+		createResp, err := iamConn.IAMClient.IC.CreateServiceModule(ctx, &cmpb.CreateServiceRequest{
+			ServiceName:        config.ServiceName,
+			ServiceDescription: config.ServiceDescription, // Use the ServiceDescription from the config
+		})
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while creating service in IAMCLIENT: %v", err)
+			return "", nil, false, err
+		}
+		serviceID = createResp.Id
+
+		// Fetch the service again to get the version
+		resp, err = iamConn.IAMClient.IC.FetchServiceByName(ctx, &cmpb.FetchServiceByNameRequest{
+			Name: config.ServiceName,
+		})
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while fetching service by name from IAMCLIENT after creation: %v", err)
+			return "", nil, false, err
+		}
+	} else {
+		serviceID = resp.Id
+	}
+
 	IamVersion := resp.Version
 	yamlVersion := config.Version
-	if CompareVersion(IamVersion, yamlVersion) {
-		return config, true, nil
+	if yamlVersion > IamVersion {
+		return serviceID, config, true, nil
 	} else {
-		return nil, false, nil
+		return serviceID, nil, false, nil
 	}
 }
 
@@ -144,16 +168,12 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 	return nil
 }
 
-func CompareVersion(IamVersion, configVersion int32) bool {
-	return configVersion > IamVersion
-}
-
 func (iamConn *IamConn) UpdateActionRoles() error {
-	config, b, err := iamConn.verifyVersion()
+	serviceID, config, shouldUpdate, err := iamConn.verifyVersion()
 	if err != nil {
 		return err
 	}
-	if b {
+	if shouldUpdate {
 		ctx := context.Background()
 		actionSlice := []*cmpb.ActionPayload{}
 		RolesSlice := []*cmpb.RolePayload{}
@@ -161,7 +181,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 			actionSlice = append(actionSlice, &cmpb.ActionPayload{
 				Name:        action.Name,
 				Displayname: action.DisplayName,
-				Serviceid:   config.ServiceID,
+				Serviceid:   serviceID, // Use the serviceID from verifyVersion
 			})
 		}
 		actionsIds, err := iamConn.IAMClient.IC.RegisterActions(ctx, &cmpb.RegisterActionsRequest{
@@ -192,7 +212,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 				Displayname: role.DisplayName,
 				Owner:       role.Owner,
 				Actionid:    roleActions,
-				Serviceid:   config.ServiceID,
+				Serviceid:   serviceID, // Use the serviceID from verifyVersion
 			})
 			b, _ := json.MarshalIndent(RolesSlice, "", "  ")
 			fmt.Println("RolesSlice: ", string(b))
