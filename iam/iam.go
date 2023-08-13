@@ -1,9 +1,7 @@
 package iam
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 
 	"context"
@@ -47,7 +45,6 @@ type IamConn struct {
 	GrpcDialOpts []grpc.DialOption
 	YamlPath     string
 	Logger       logging.Logger
-	ServiceName  string
 }
 
 func newIAMClient(iamaddress string, opts ...grpc.DialOption) (*IAMClient, error) {
@@ -178,7 +175,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 			actionSlice = append(actionSlice, &cmpb.ActionPayload{
 				Name:        action.Name,
 				Displayname: action.DisplayName,
-				Serviceid:   serviceID, // Use the serviceID from verifyVersion
+				Serviceid:   serviceID,
 			})
 		}
 		actionsIds, err := iamConn.IAMClient.IC.RegisterActions(ctx, &cmpb.RegisterActionsRequest{
@@ -193,6 +190,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 		for i, action := range config.Actions {
 			actionNameToID[action.Name] = actionsIds.Actionids[i].Actionid
 		}
+
 		// Associate the correct actions with each role
 		for _, role := range config.Roles {
 			roleActions := []string{}
@@ -206,7 +204,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 				Displayname: role.DisplayName,
 				Owner:       role.Owner,
 				Actionid:    roleActions,
-				Serviceid:   serviceID, // Use the serviceID from verifyVersion
+				Serviceid:   serviceID,
 			})
 		}
 
@@ -220,7 +218,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 
 	if shouldUpdate && !isNewService {
 		res, err := iamConn.IAMClient.IC.UpdateServiceVersion(ctx, &cmpb.UpdateServiceVersionRequest{
-			Servicename: iamConn.ServiceName,
+			Servicename: config.ServiceName, // Use the ServiceName from the config
 			Version:     config.Version,
 		})
 		if err != nil {
