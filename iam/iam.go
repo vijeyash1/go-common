@@ -126,6 +126,7 @@ func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, bool,
 		}
 		serviceID = createResp.Id
 		isNewService = true
+		return serviceID, config, true, isNewService, nil
 	} else {
 		serviceID = resp.Id
 	}
