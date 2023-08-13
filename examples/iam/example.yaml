@@ -1,6 +1,8 @@
 version: 4
-serviceid: "79545c83-13c7-4cf4-98ac-99db1821c382"
-actions:
+servicename: "YourServiceName"  # Add your service name here
+servicedescription: "Description of Your Service"  # Add your service description here
+
+actions: #Add your actions or permissions here
   - name: "action1"
     displayname: "Action 1"
   - name: "action2"
@@ -11,16 +13,16 @@ actions:
     displayname: "Action 4"
 
 roles:
-  - name: "role1"
-    displayname: "Role 1"
-    description: "This is role 1"
-    owner: "owner1"
+  - name: "role1" #role name
+    displayname: "Role 1" #role display name
+    description: "This is role 1" #role description
+    owner: "capten" #here mention the owner name, if service is capten then "capten"
     actions:
-      - "action1"
+      - "action1" # here mention the name of the action
   - name: "role2"
     displayname: "Role 2"
     description: "This is role 2"
-    owner: "owner1"
+    owner: "capten"
     actions:
       - "action1"
       - "action2"
