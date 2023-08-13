@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package CmService;
+
+option go_package = "gitlab.com/tariandev_intelops/iam/cmproto";
+
+message ActionPayload{
+    string id = 1;
+    string name = 2;
+    string displayname = 3;
+    string serviceid=4;
+}
+message RegisterActionsRequest {
+    repeated ActionPayload actions = 1;
+}
+message ActionIds{
+     string actionid = 1;
+}
+message RegisterActionsResponse {
+    repeated ActionIds actionids = 1;
+}
+message RolePayload{
+    string id =1;
+    repeated string actionid = 2;
+    string rolename = 3;
+    string displayname = 4;
+    string owner = 5;
+    string description = 6;
+    string serviceid = 7;
+}
+message RegisterRolesRequest {
+    repeated RolePayload roles = 1;
+}
+
+message RegisterRolesResponse {
+    bool success = 1;
+}
+
+message FetchServiceByNameRequest {
+    string name = 1;
+
+}
+message FetchServiceByNameResponse {
+    string id = 1;
+    string serviceName = 2;
+    string serviceDescription = 3;
+    int32 Version = 4;
+}
+
+message UpdateServiceVersionRequest {
+    string servicename = 1;
+    int32 version = 2;
+
+}
+
+message UpdateServiceVersionResponse {
+    bool success = 1;
+
+}
+
+service CommonModule {
+    rpc RegisterActions(RegisterActionsRequest)returns(RegisterActionsResponse);
+    rpc RegisterRoles(RegisterRolesRequest)returns(RegisterRolesResponse);
+    rpc FetchServiceByName(FetchServiceByNameRequest)returns(FetchServiceByNameResponse);
+    rpc UpdateServiceVersion(UpdateServiceVersionRequest) returns (UpdateServiceVersionResponse);
+}

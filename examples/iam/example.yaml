@@ -1,0 +1,26 @@
+version: 4
+serviceid: "79545c83-13c7-4cf4-98ac-99db1821c382"
+actions:
+  - name: "action1"
+    displayname: "Action 1"
+  - name: "action2"
+    displayname: "Action 2"
+  - name: "action3"
+    displayname: "Action 3"
+  - name: "action4"
+    displayname: "Action 4"
+
+roles:
+  - name: "role1"
+    displayname: "Role 1"
+    description: "This is role 1"
+    owner: "owner1"
+    actions:
+      - "action1"
+  - name: "role2"
+    displayname: "Role 2"
+    description: "This is role 2"
+    owner: "owner1"
+    actions:
+      - "action1"
+      - "action2"
