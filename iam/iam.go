@@ -169,54 +169,53 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 	}
 
 	ctx := context.Background()
-	actionSlice := []*cmpb.ActionPayload{}
-	RolesSlice := []*cmpb.RolePayload{}
-	for _, action := range config.Actions {
-		actionSlice = append(actionSlice, &cmpb.ActionPayload{
-			Name:        action.Name,
-			Displayname: action.DisplayName,
-			Serviceid:   serviceID, // Use the serviceID from verifyVersion
-		})
-	}
-	actionsIds, err := iamConn.IAMClient.IC.RegisterActions(ctx, &cmpb.RegisterActionsRequest{
-		Actions: actionSlice,
-	})
-	if err != nil {
-		return err
-	}
 
-	// Create a map from action name to action ID
-	actionNameToID := make(map[string]string)
-	for i, action := range config.Actions {
-		actionNameToID[action.Name] = actionsIds.Actionids[i].Actionid
-	}
-	an2s, _ := json.MarshalIndent(actionNameToID, "", "  ")
-	fmt.Println("actionNameToID: ", string(an2s))
-	// Associate the correct actions with each role
-	for _, role := range config.Roles {
-		roleActions := []string{}
-		for _, actionName := range role.Actions {
-			if actionID, ok := actionNameToID[actionName]; ok {
-				roleActions = append(roleActions, actionID)
-			}
+	// Only register actions and roles if the service is newly created or if the YAML version is higher
+	if isNewService || shouldUpdate {
+		actionSlice := []*cmpb.ActionPayload{}
+		RolesSlice := []*cmpb.RolePayload{}
+		for _, action := range config.Actions {
+			actionSlice = append(actionSlice, &cmpb.ActionPayload{
+				Name:        action.Name,
+				Displayname: action.DisplayName,
+				Serviceid:   serviceID, // Use the serviceID from verifyVersion
+			})
 		}
-		fmt.Println("roleActions: ", roleActions)
-		RolesSlice = append(RolesSlice, &cmpb.RolePayload{
-			Rolename:    role.Name,
-			Displayname: role.DisplayName,
-			Owner:       role.Owner,
-			Actionid:    roleActions,
-			Serviceid:   serviceID, // Use the serviceID from verifyVersion
+		actionsIds, err := iamConn.IAMClient.IC.RegisterActions(ctx, &cmpb.RegisterActionsRequest{
+			Actions: actionSlice,
 		})
-		b, _ := json.MarshalIndent(RolesSlice, "", "  ")
-		fmt.Println("RolesSlice: ", string(b))
-	}
+		if err != nil {
+			return err
+		}
 
-	_, err = iamConn.IAMClient.IC.RegisterRoles(ctx, &cmpb.RegisterRolesRequest{
-		Roles: RolesSlice,
-	})
-	if err != nil {
-		return err
+		// Create a map from action name to action ID
+		actionNameToID := make(map[string]string)
+		for i, action := range config.Actions {
+			actionNameToID[action.Name] = actionsIds.Actionids[i].Actionid
+		}
+		// Associate the correct actions with each role
+		for _, role := range config.Roles {
+			roleActions := []string{}
+			for _, actionName := range role.Actions {
+				if actionID, ok := actionNameToID[actionName]; ok {
+					roleActions = append(roleActions, actionID)
+				}
+			}
+			RolesSlice = append(RolesSlice, &cmpb.RolePayload{
+				Rolename:    role.Name,
+				Displayname: role.DisplayName,
+				Owner:       role.Owner,
+				Actionid:    roleActions,
+				Serviceid:   serviceID, // Use the serviceID from verifyVersion
+			})
+		}
+
+		_, err = iamConn.IAMClient.IC.RegisterRoles(ctx, &cmpb.RegisterRolesRequest{
+			Roles: RolesSlice,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	if shouldUpdate && !isNewService {
@@ -230,7 +229,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 		if !res.Success {
 			return errors.New("error updating version")
 		}
-	} else if !shouldUpdate {
+	} else if !shouldUpdate && !isNewService {
 		iamConn.Logger.Infof("Version is up to date with Iam server")
 	}
 
