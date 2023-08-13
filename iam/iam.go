@@ -168,15 +168,15 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 	// Check for missing values in the YAML
 	if config.ServiceName == "" {
 		iamConn.Logger.Errorf("ServiceName is missing in the YAML")
-		return errors.New("ServiceName is missing in the YAML")
+		return errors.New("servicename is missing in the yaml")
 	}
 	if config.Version == 0 {
 		iamConn.Logger.Errorf("Version is missing in the YAML")
-		return errors.New("Version is missing in the YAML")
+		return errors.New("version is missing in the yaml")
 	}
 	if config.Actions == nil {
 		iamConn.Logger.Errorf("Actions are missing in the YAML")
-		return errors.New("Actions are missing in the YAML")
+		return errors.New("actions are missing in the yaml")
 	}
 
 	ctx := context.Background()
