@@ -94,12 +94,12 @@ func WithIamYamlPath(path string) IamConnOptions {
 	}
 }
 
-func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, error) {
+func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, bool, error) {
 	config := &ActionRolePayload{}
 	err := iamConn.readConfig(config)
 	if err != nil {
 		iamConn.Logger.Errorf("Error reading config file: %v", err)
-		return "", nil, false, err
+		return "", nil, false, false, err
 	}
 
 	ctx := context.Background()
@@ -109,10 +109,11 @@ func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, error
 
 	if err != nil {
 		iamConn.Logger.Errorf("Error occurred while fetching service by name from IAMCLIENT: %v", err)
-		return "", nil, false, err
+		return "", nil, false, false, err
 	}
 
 	var serviceID string
+	var isNewService bool
 	if resp == nil || resp.Id == "" {
 		// Create a new service if it doesn't exist
 		createResp, err := iamConn.IAMClient.IC.CreateServiceModule(ctx, &cmpb.CreateServiceRequest{
@@ -121,18 +122,10 @@ func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, error
 		})
 		if err != nil {
 			iamConn.Logger.Errorf("Error occurred while creating service in IAMCLIENT: %v", err)
-			return "", nil, false, err
+			return "", nil, false, false, err
 		}
 		serviceID = createResp.Id
-
-		// Fetch the service again to get the version
-		resp, err = iamConn.IAMClient.IC.FetchServiceByName(ctx, &cmpb.FetchServiceByNameRequest{
-			Name: config.ServiceName,
-		})
-		if err != nil {
-			iamConn.Logger.Errorf("Error occurred while fetching service by name from IAMCLIENT after creation: %v", err)
-			return "", nil, false, err
-		}
+		isNewService = true
 	} else {
 		serviceID = resp.Id
 	}
@@ -140,9 +133,9 @@ func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, error
 	IamVersion := resp.Version
 	yamlVersion := config.Version
 	if yamlVersion > IamVersion {
-		return serviceID, config, true, nil
+		return serviceID, config, true, isNewService, nil
 	} else {
-		return serviceID, nil, false, nil
+		return serviceID, config, false, isNewService, nil
 	}
 }
 
@@ -169,11 +162,11 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 }
 
 func (iamConn *IamConn) UpdateActionRoles() error {
-	serviceID, config, shouldUpdate, err := iamConn.verifyVersion()
+	serviceID, config, shouldUpdateVersion, isNewService, err := iamConn.verifyVersion()
 	if err != nil {
 		return err
 	}
-	if shouldUpdate {
+	if shouldUpdateVersion || isNewService {
 		ctx := context.Background()
 		actionSlice := []*cmpb.ActionPayload{}
 		RolesSlice := []*cmpb.RolePayload{}
@@ -224,15 +217,18 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 		if err != nil {
 			return err
 		}
-		res, err := iamConn.IAMClient.IC.UpdateServiceVersion(ctx, &cmpb.UpdateServiceVersionRequest{
-			Servicename: iamConn.ServiceName,
-			Version:     config.Version,
-		})
-		if err != nil {
-			return err
-		}
-		if !res.Success {
-			return errors.New("error updating version")
+
+		if shouldUpdateVersion {
+			res, err := iamConn.IAMClient.IC.UpdateServiceVersion(ctx, &cmpb.UpdateServiceVersionRequest{
+				Servicename: iamConn.ServiceName,
+				Version:     config.Version,
+			})
+			if err != nil {
+				return err
+			}
+			if !res.Success {
+				return errors.New("error updating version")
+			}
 		}
 	} else {
 		iamConn.Logger.Infof("Version is up to date with Iam server")
