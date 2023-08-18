@@ -159,7 +159,7 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 	return nil
 }
 
-func (iamConn *IamConn) UpdateActionRoles() error {
+func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 	serviceID, config, shouldUpdate, isNewService, err := iamConn.verifyVersion()
 	if err != nil {
 		return err
@@ -178,8 +178,6 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 		iamConn.Logger.Errorf("Actions are missing in the YAML")
 		return errors.New("actions are missing in the yaml")
 	}
-
-	ctx := context.Background()
 
 	// Only register actions and roles if the service is newly created or if the YAML version is higher
 	if isNewService || shouldUpdate {
