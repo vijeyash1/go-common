@@ -3,13 +3,16 @@ package iam
 import (
 	"errors"
 	"os"
+	"strings"
 
 	"context"
 
 	cmpb "github.com/intelops/go-common/iam/proto"
 	"github.com/intelops/go-common/logging"
 
+	ory "github.com/ory/client-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"gopkg.in/yaml.v2"
 )
 
@@ -160,6 +163,58 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 }
 
 func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
+	// Retrieve metadata from the context
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return errors.New("no metadata found in context")
+	}
+
+	// Extract specific metadata values
+	oryURLs := md["ory_url"]
+	oauthTokens := md["oauth_token"]
+	oryPATs := md["ory_pat"]
+
+	// Check if the values exist and assign them
+	var oryURL, oauthToken, oryPAT string
+	if len(oryURLs) > 0 {
+		oryURL = oryURLs[0]
+	} else {
+		return errors.New("ory_url not found in metadata")
+	}
+
+	if len(oauthTokens) > 0 {
+		oauthToken = oauthTokens[0]
+	} else {
+		return errors.New("oauth_token not found in metadata")
+	}
+
+	if len(oryPATs) > 0 {
+		oryPAT = oryPATs[0]
+	} else {
+		return errors.New("ory_pat not found in metadata")
+	}
+
+	OryCli := iamConn.newOrySdk(oryURL)
+	oryAuthedContext := context.WithValue(ctx, ory.ContextAccessToken, oryPAT)
+	// Introspect the OAuth token to get the ClientId
+	introspectionResponse, _, err := OryCli.OAuth2Api.IntrospectOAuth2Token(oryAuthedContext).Token(oauthToken).Execute()
+	if err != nil {
+		return err
+	}
+	if introspectionResponse == nil || introspectionResponse.ClientId == nil {
+		return errors.New("introspection response or client ID is nil")
+	}
+	clientId := *introspectionResponse.ClientId
+
+	// Fetch the client details using the ClientId
+	clientDetails, _, err := OryCli.OAuth2Api.GetOAuth2Client(oryAuthedContext, clientId).Execute()
+	if err != nil {
+		return err
+	}
+	if clientDetails == nil || clientDetails.ClientName == nil {
+		return errors.New("client details or client name is nil")
+	}
+
 	serviceID, config, shouldUpdate, isNewService, err := iamConn.verifyVersion()
 	if err != nil {
 		return err
@@ -169,6 +224,10 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 	if config.ServiceName == "" {
 		iamConn.Logger.Errorf("ServiceName is missing in the YAML")
 		return errors.New("servicename is missing in the yaml")
+	}
+	// Compare the ClientName with the ServiceName in the config
+	if !strings.EqualFold(*clientDetails.ClientName, config.ServiceName) {
+		return errors.New("service name from token does not match service name in config")
 	}
 	if config.Version == 0 {
 		iamConn.Logger.Errorf("Version is missing in the YAML")
@@ -244,4 +303,13 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (iamConn *IamConn) newOrySdk(oryURL string) *ory.APIClient {
+	config := ory.NewConfiguration()
+	config.Servers = ory.ServerConfigurations{{
+		URL: oryURL,
+	}}
+
+	return ory.NewAPIClient(config)
 }
