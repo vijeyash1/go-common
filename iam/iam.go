@@ -164,7 +164,7 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 
 func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 	// Retrieve metadata from the context
-	md, ok := metadata.FromIncomingContext(ctx)
+	md, ok := metadata.FromOutgoingContext(ctx)
 	if !ok {
 		return errors.New("no metadata found in context")
 	}
