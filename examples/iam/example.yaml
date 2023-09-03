@@ -5,12 +5,16 @@ servicedescription: "Description of Your Service"  # Add your service descriptio
 actions: #Add your actions or permissions here
   - name: "action1"
     displayname: "Action 1"
+    category: "Category"
   - name: "action2"
     displayname: "Action 2"
+    category: "Category"
   - name: "action3"
     displayname: "Action 3"
+    category: "Category"
   - name: "action4"
     displayname: "Action 4"
+    category: "Category"
 
 roles:
   - name: "role1" #role name

@@ -16,6 +16,7 @@ import (
 type Action struct {
 	Name        string `yaml:"name"`
 	DisplayName string `yaml:"displayname"`
+	Category    string `yaml:"category"`
 }
 
 type Role struct {
@@ -190,6 +191,7 @@ func (iamConn *IamConn) UpdateActionRoles() error {
 				Name:        action.Name,
 				Displayname: action.DisplayName,
 				Serviceid:   serviceID,
+				Category:    action.Category,
 			})
 		}
 		actionsIds, err := iamConn.IAMClient.IC.RegisterActions(ctx, &cmpb.RegisterActionsRequest{

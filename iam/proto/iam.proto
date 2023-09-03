@@ -9,6 +9,7 @@ message ActionPayload{
     string name = 2;
     string displayname = 3;
     string serviceid=4;
+    string category=5;
 }
 message RegisterActionsRequest {
     repeated ActionPayload actions = 1;
