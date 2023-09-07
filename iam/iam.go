@@ -17,8 +17,9 @@ import (
 )
 
 type Action struct {
-	Name        string `yaml:"name"`
-	DisplayName string `yaml:"displayname"`
+	Name              string `yaml:"name"`
+	DisplayName       string `yaml:"displayname"`
+	ActionDescription string `yaml:"actiondescription"`
 }
 
 type Role struct {
@@ -94,49 +95,36 @@ func WithIamYamlPath(path string) IamConnOptions {
 	}
 }
 
-func (iamConn *IamConn) verifyVersion() (string, *ActionRolePayload, bool, bool, error) {
+func (iamConn *IamConn) verifyVersion() (string, bool, error) {
 	config := &ActionRolePayload{}
 	err := iamConn.readConfig(config)
 	if err != nil {
 		iamConn.Logger.Errorf("Error reading config file: %v", err)
-		return "", nil, false, false, err
+		return "", false, err
 	}
 
 	ctx := context.Background()
 	resp, err := iamConn.IAMClient.IC.FetchServiceByName(ctx, &cmpb.FetchServiceByNameRequest{
-		Name: config.ServiceName, // Use the ServiceName from the config
+		Name: config.ServiceName,
 	})
 
 	if err != nil {
 		iamConn.Logger.Errorf("Error occurred while fetching service by name from IAMCLIENT: %v", err)
-		return "", nil, false, false, err
+		return "", false, err
 	}
 
-	var serviceID string
-	var isNewService bool
-	if resp == nil || resp.Id == "" {
-		// Create a new service if it doesn't exist
-		createResp, err := iamConn.IAMClient.IC.CreateServiceModule(ctx, &cmpb.CreateServiceRequest{
-			ServiceName:        config.ServiceName,
-			ServiceDescription: config.ServiceDescription, // Use the ServiceDescription from the config
-		})
-		if err != nil {
-			iamConn.Logger.Errorf("Error occurred while creating service in IAMCLIENT: %v", err)
-			return "", nil, false, false, err
-		}
-		serviceID = createResp.Id
-		isNewService = true
-		return serviceID, config, true, isNewService, nil
-	} else {
-		serviceID = resp.Id
+	if resp == nil {
+		iamConn.Logger.Errorf("Error occurred while fetching service by name from IAMCLIENT: %v", err)
+		return "", false, errors.New("error occured while fetching service by name")
 	}
+	serviceID := resp.Id
 
 	IamVersion := resp.Version
 	yamlVersion := config.Version
 	if yamlVersion > IamVersion {
-		return serviceID, config, true, isNewService, nil
+		return serviceID, true, nil
 	} else {
-		return serviceID, config, false, isNewService, nil
+		return serviceID, false, nil
 	}
 }
 
@@ -163,7 +151,13 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 }
 
 func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
-	// Retrieve metadata from the context
+	config := &ActionRolePayload{}
+	err := iamConn.readConfig(config)
+	if err != nil {
+		iamConn.Logger.Errorf("Error reading config file: %v", err)
+		return err
+	}
+
 	md, ok := metadata.FromOutgoingContext(ctx)
 	if !ok {
 		return errors.New("no metadata found in context")
@@ -215,11 +209,6 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 		return errors.New("client details or client name is nil")
 	}
 
-	serviceID, config, shouldUpdate, isNewService, err := iamConn.verifyVersion()
-	if err != nil {
-		return err
-	}
-
 	// Check for missing values in the YAML
 	if config.ServiceName == "" {
 		iamConn.Logger.Errorf("ServiceName is missing in the YAML")
@@ -237,9 +226,11 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 		iamConn.Logger.Errorf("Actions are missing in the YAML")
 		return errors.New("actions are missing in the yaml")
 	}
-
-	// Only register actions and roles if the service is newly created or if the YAML version is higher
-	if isNewService || shouldUpdate {
+	serviceID, shouldUpdate, err := iamConn.verifyVersion()
+	if err != nil {
+		return err
+	}
+	if shouldUpdate {
 		actionSlice := []*cmpb.ActionPayload{}
 		RolesSlice := []*cmpb.RolePayload{}
 		for _, action := range config.Actions {
@@ -247,6 +238,7 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 				Name:        action.Name,
 				Displayname: action.DisplayName,
 				Serviceid:   serviceID,
+				Description: action.ActionDescription,
 			})
 		}
 		actionsIds, err := iamConn.IAMClient.IC.RegisterActions(ctx, &cmpb.RegisterActionsRequest{
@@ -255,14 +247,10 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-
-		// Create a map from action name to action ID
 		actionNameToID := make(map[string]string)
 		for i, action := range config.Actions {
 			actionNameToID[action.Name] = actionsIds.Actionids[i].Actionid
 		}
-
-		// Associate the correct actions with each role
 		for _, role := range config.Roles {
 			roleActions := []string{}
 			for _, actionName := range role.Actions {
@@ -276,6 +264,7 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 				Owner:       role.Owner,
 				Actionid:    roleActions,
 				Serviceid:   serviceID,
+				Description: role.Description,
 			})
 		}
 
@@ -287,7 +276,7 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 		}
 	}
 
-	if shouldUpdate && !isNewService {
+	if shouldUpdate {
 		res, err := iamConn.IAMClient.IC.UpdateServiceVersion(ctx, &cmpb.UpdateServiceVersionRequest{
 			Servicename: config.ServiceName, // Use the ServiceName from the config
 			Version:     config.Version,
@@ -298,7 +287,7 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 		if !res.Success {
 			return errors.New("error updating version")
 		}
-	} else if !shouldUpdate && !isNewService {
+	} else if !shouldUpdate {
 		iamConn.Logger.Infof("Version is up to date with Iam server")
 	}
 
