@@ -1,0 +1,147 @@
+servicename: "iam"
+policies:
+  - resourceName: "ActionService-Action-CreateAction"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "ActionService-Action-ListActions"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "ActionService-Action-DeleteAction"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "ActionService-Action-GetAction"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "ActionService-Action-UpdateAction"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "InterceptorService-CommonInterceptorService-GetActionsWithOryidOrgid"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "Services-MyService-DeleteService"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "Services-MyService-GetService"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "Services-MyService-GetServiceByName"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "Services-MyService-UpdateService"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "OrganizationService-Org-CreateOrg"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "OrganizationService-Org-DeleteOrg"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "OrganizationService-Org-GetOrg"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "OrganizationService-Org-UpdateOrg"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-CreateManyRoles"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-CreateRole"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-DeleteRole"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-GetRole"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-ListRolesByOrgID"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-GetRoleByName"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-ListRoles"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "RoleService-Role-UpdateRole"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "UserService-User-CreateUser"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "UserService-User-DeleteUser"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "UserService-User-GetUser"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "UserService-User-UpdateUser"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "UserService-User-GetUserDetails"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "ActionService-Action-GetActionByName"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"
+  - resourceName: "OrganizationService-Org-GetOrgByName"
+    actions:
+      - "org_mgmt"
+      - "role_mgmt"
+      - "user_mgmt"

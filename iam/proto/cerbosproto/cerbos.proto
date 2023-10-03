@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package CerbosPolicyService;
+
+option go_package = "gitlab.com/tariandev_intelops/iam/cerbospolicyproto";
+
+
+service CerbosModuleService {
+    rpc AddOrUpdateResourcePolicy(AddOrUpdateResourcePolicyRequest) returns (AddOrUpdateResourcePolicyResponse);
+    rpc DisablePolicy(DisablePolicyRequest) returns (DisablePolicyResponse);
+    rpc ListResourcePolicies(ListResourcePoliciesRequest) returns (ListResourcePoliciesResponse);
+}
+
+message ListResourcePoliciesRequest {
+    string servicename = 1;
+}
+
+message ListResourcePoliciesResponse {
+    repeated string policies = 1;
+}
+
+message AddOrUpdateResourcePolicyRequest {
+    string resourceName = 1;
+    string scope = 2;
+    repeated string actions = 3;
+}
+
+message AddOrUpdateResourcePolicyResponse {
+    string status = 1; // e.g., "success" or "error"
+    string message = 2; // e.g., error message or success confirmation
+}
+
+message DisablePolicyRequest {
+    string id = 1;
+}
+
+message DisablePolicyResponse {
+    string status = 1; // e.g., "success" or "error"
+    string message = 2; // e.g., error message or success confirmation
+}
