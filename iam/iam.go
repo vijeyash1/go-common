@@ -2,12 +2,14 @@ package iam
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
 	"context"
 
-	cmpb "github.com/intelops/go-common/iam/proto"
+	cerbospb "github.com/intelops/go-common/iam/proto/cerbosproto"
+	cmpb "github.com/intelops/go-common/iam/proto/iamproto"
 	"github.com/intelops/go-common/logging"
 
 	ory "github.com/ory/client-go"
@@ -15,6 +17,16 @@ import (
 	"google.golang.org/grpc/metadata"
 	"gopkg.in/yaml.v2"
 )
+
+type CerbosResourcePolicy struct {
+	ResourceName string   `yaml:"resourceName"`
+	Actions      []string `yaml:"actions"`
+}
+
+type Policies struct {
+	ServiceName string                 `yaml:"servicename"`
+	Policies    []CerbosResourcePolicy `yaml:"policies"`
+}
 
 type Action struct {
 	Name              string `yaml:"name"`
@@ -42,13 +54,15 @@ type IamConnOptions func(*IamConn)
 
 type IAMClient struct {
 	IC cmpb.CommonModuleClient
+	CC cerbospb.CerbosModuleServiceClient
 }
 
 type IamConn struct {
-	IAMClient    *IAMClient
-	GrpcDialOpts []grpc.DialOption
-	YamlPath     string
-	Logger       logging.Logger
+	IAMClient      *IAMClient
+	GrpcDialOpts   []grpc.DialOption
+	IamYamlPath    string
+	CerbosYamlPath string
+	Logger         logging.Logger
 }
 
 func newIAMClient(iamaddress string, opts ...grpc.DialOption) (*IAMClient, error) {
@@ -57,8 +71,10 @@ func newIAMClient(iamaddress string, opts ...grpc.DialOption) (*IAMClient, error
 		return nil, err
 	}
 	client := cmpb.NewCommonModuleClient(conn)
+	cerbosclient := cerbospb.NewCerbosModuleServiceClient(conn)
 	return &IAMClient{
 		IC: client,
+		CC: cerbosclient,
 	}, nil
 }
 
@@ -91,10 +107,14 @@ func WithGrpcDialOption(grpcOpts ...grpc.DialOption) IamConnOptions {
 
 func WithIamYamlPath(path string) IamConnOptions {
 	return func(iamConn *IamConn) {
-		iamConn.YamlPath = path
+		iamConn.IamYamlPath = path
 	}
 }
-
+func WithCerbosYamlPath(path string) IamConnOptions {
+	return func(iamConn *IamConn) {
+		iamConn.CerbosYamlPath = path
+	}
+}
 func (iamConn *IamConn) verifyVersion() (string, bool, error) {
 	config := &ActionRolePayload{}
 	err := iamConn.readConfig(config)
@@ -130,7 +150,7 @@ func (iamConn *IamConn) verifyVersion() (string, bool, error) {
 
 func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 	// Read the file location from an environment variable
-	fileLocation := iamConn.YamlPath
+	fileLocation := iamConn.IamYamlPath
 	if fileLocation == "" {
 		fileLocation = "config.yaml"
 	}
@@ -142,6 +162,24 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 	// Close the file when we are done
 	defer file.Close()
 	// Decode the file into our struct
+	decoder := yaml.NewDecoder(file)
+	err = decoder.Decode(config)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (iamConn *IamConn) readCerbosConfig(config *Policies) error {
+	fileLocation := iamConn.CerbosYamlPath
+	if fileLocation == "" {
+		return errors.New("file location for cerbos policy is not found")
+	}
+	file, err := os.Open(fileLocation)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
 	decoder := yaml.NewDecoder(file)
 	err = decoder.Decode(config)
 	if err != nil {
@@ -301,4 +339,98 @@ func (iamConn *IamConn) newOrySdk(oryURL string) *ory.APIClient {
 	}}
 
 	return ory.NewAPIClient(config)
+}
+
+func (iamConn *IamConn) RegisterCerbosResourcePolicies(ctx context.Context) error {
+	config := &Policies{}
+	err := iamConn.readCerbosConfig(config)
+	if err != nil {
+		iamConn.Logger.Errorf("Error reading cerbos config file: %v", err)
+		return err
+	}
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok {
+		return errors.New("no metadata found in context")
+	}
+	oryURLs := md["ory_url"]
+	oauthTokens := md["oauth_token"]
+	oryPATs := md["ory_pat"]
+	var oryURL, oauthToken, oryPAT string
+	if len(oryURLs) > 0 {
+		oryURL = oryURLs[0]
+	} else {
+		return errors.New("ory_url not found in metadata")
+	}
+
+	if len(oauthTokens) > 0 {
+		oauthToken = oauthTokens[0]
+	} else {
+		return errors.New("oauth_token not found in metadata")
+	}
+
+	if len(oryPATs) > 0 {
+		oryPAT = oryPATs[0]
+	} else {
+		return errors.New("ory_pat not found in metadata")
+	}
+	OryCli := iamConn.newOrySdk(oryURL)
+	oryAuthedContext := context.WithValue(ctx, ory.ContextAccessToken, oryPAT)
+	introspectionResponse, _, err := OryCli.OAuth2Api.IntrospectOAuth2Token(oryAuthedContext).Token(oauthToken).Execute()
+	if err != nil {
+		return err
+	}
+	if introspectionResponse == nil || introspectionResponse.ClientId == nil {
+		return errors.New("introspection response or client ID is nil")
+	}
+	clientId := *introspectionResponse.ClientId
+
+	clientDetails, _, err := OryCli.OAuth2Api.GetOAuth2Client(oryAuthedContext, clientId).Execute()
+	if err != nil {
+		return err
+	}
+	if clientDetails == nil || clientDetails.ClientName == nil {
+		return errors.New("client details or client name is nil")
+	}
+	if !strings.EqualFold(*clientDetails.ClientName, config.ServiceName) {
+		return errors.New("service name from token does not match service name in config")
+	}
+
+	// New code
+	// List current policies
+	listReq := cerbospb.ListResourcePoliciesRequest{Servicename: config.ServiceName}
+	listResp, err := iamConn.IAMClient.CC.ListResourcePolicies(ctx, &listReq)
+	if err != nil {
+		return fmt.Errorf("error listing current policies: %v", err)
+	}
+	currentPolicies := listResp.Policies
+
+	// Create a map for easy lookup
+	currentPolicyMap := make(map[string]struct{})
+	for _, policy := range currentPolicies {
+		currentPolicyMap[policy] = struct{}{}
+	}
+
+	// Register or update policies
+	for _, policy := range config.Policies {
+		addOrUpdateReq := cerbospb.AddOrUpdateResourcePolicyRequest{
+			ResourceName: policy.ResourceName,
+			Scope:        config.ServiceName,
+			Actions:      policy.Actions,
+		}
+		_, err := iamConn.IAMClient.CC.AddOrUpdateResourcePolicy(ctx, &addOrUpdateReq)
+		if err != nil {
+			return fmt.Errorf("error registering or updating policy for resource %s: %v", policy.ResourceName, err)
+		}
+		delete(currentPolicyMap, "resource."+policy.ResourceName+".vdefault")
+		delete(currentPolicyMap, "resource."+policy.ResourceName+".vdefault"+"/"+config.ServiceName)
+	}
+
+	for policy := range currentPolicyMap {
+		disableReq := cerbospb.DisablePolicyRequest{Id: policy}
+		_, err := iamConn.IAMClient.CC.DisablePolicy(ctx, &disableReq)
+		if err != nil {
+			return fmt.Errorf("error disabling policy %s: %v", policy, err)
+		}
+	}
+	return nil
 }

@@ -23,6 +23,7 @@ func main() {
 		cm.WithGrpcDialOption(grpcOpts...),
 		cm.WithIamAddress("localhost:3001"),
 		cm.WithIamYamlPath("provide the yaml location here"), // Ensure to provide the correct path to your YAML configuration
+		cm.WithCerbosYamlPath("provide the cerbos yaml location here"),
 	)
 	ctx := context.Background()
 	md := metadata.Pairs("oauth_token", "dummytoken")
@@ -31,5 +32,9 @@ func main() {
 	err := iamConn.UpdateActionRoles(newCtx)
 	if err != nil {
 		log.Fatalf("Failed to update action roles: %v", err)
+	}
+	err = iamConn.RegisterCerbosResourcePolicies(newCtx)
+	if err != nil {
+		log.Fatalf("Failed to Register cerbos Resource Policies: %v", err)
 	}
 }
