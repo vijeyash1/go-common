@@ -1,0 +1,21 @@
+exclude:
+
+
+authenticate:
+ - /User/UpdateUser
+ - /Org/CreateOrg
+ - /Action/DeleteAction
+ - /Action/GetAction
+ - /Org/DeleteOrg
+ - /Org/GetOrg
+ - /User/DeleteUser
+ - /User/GetUser
+ - /Action/UpdateAction
+ - /Action/CreateAction
+ - /Org/UpdateOrg
+ - /User/CreateUser
+
+authenticate-authorize:
+ - /Action/GetActionByName
+ - /Org/GetOrgByName
+ - /GreetingsService/SayHello

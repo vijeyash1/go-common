@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package InterceptorService;
+
+option go_package = "gitlab.com/tariandev_intelops/iam/commoninterceptorproto";
+
+message GetActionsPayload {
+  string oryid = 1;
+  string orgid = 2;
+}
+message GetActionsResponse {
+  repeated string actions = 1;
+  string email =2;
+}
+
+service CommonInterceptorService {
+ rpc GetActionsWithOryidOrgid(GetActionsPayload)returns(GetActionsResponse);
+}
