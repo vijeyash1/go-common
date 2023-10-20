@@ -10,13 +10,30 @@ import (
 
 	cerbospb "github.com/intelops/go-common/iam/proto/cerbosproto"
 	cmpb "github.com/intelops/go-common/iam/proto/iamproto"
-	"github.com/intelops/go-common/logging"
+	interceptorpb "github.com/intelops/go-common/iam/proto/interceptorproto"
+	"google.golang.org/grpc/status"
 
+	cerbos "github.com/cerbos/cerbos/client"
+	"github.com/intelops/go-common/logging"
 	ory "github.com/ory/client-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"gopkg.in/yaml.v2"
 )
+
+type Key string
+
+const (
+	authorizationHeader = "authorization"
+	bearerTokenPrefix   = "Bearer"
+)
+
+type InterceptorConfig struct {
+	Exclude               []string `yaml:"exclude"`
+	Authenticate          []string `yaml:"authenticate"`
+	AuthenticateAuthorize []string `yaml:"authenticate-authorize"`
+}
 
 type CerbosResourcePolicy struct {
 	ResourceName string   `yaml:"resourceName"`
@@ -50,21 +67,68 @@ type ActionRolePayload struct {
 	Roles              []Role   `yaml:"roles"`
 }
 
-type IamConnOptions func(*IamConn)
+type IamConnOptions func(*ClientsAndConfigs)
 
 type IAMClient struct {
-	IC cmpb.CommonModuleClient
-	CC cerbospb.CerbosModuleServiceClient
+	IC          cmpb.CommonModuleClient
+	CC          cerbospb.CerbosModuleServiceClient
+	Interceptor interceptorpb.CommonInterceptorServiceClient
 }
 
-type IamConn struct {
-	IAMClient      *IAMClient
-	GrpcDialOpts   []grpc.DialOption
-	IamYamlPath    string
-	CerbosYamlPath string
-	Logger         logging.Logger
+type ClientsAndConfigs struct {
+	IAMClient           *IAMClient
+	GrpcDialOpts        []grpc.DialOption
+	IamYamlPath         string
+	CerbosYamlPath      string
+	Logger              logging.Logger
+	InterceptorYamlPath string
+	OryUrl              *string
+	OryPat              *string
+	OryClient           *ory.APIClient
+	Scope               *string
+	CerbosUrl           *string
+	CerbosUsername      *string
+	CerbosPassword      *string
+	CerbosClient        cerbos.Client
 }
 
+func (iamConn *ClientsAndConfigs) InitializeOrySdk() error {
+	if iamConn.OryUrl == nil {
+		return errors.New(`please add ory Url and OryPat using
+		Func WithOryCreds(oryUrl, oryPat string) before
+		calling InitializeCerbosSdk() for More info refer
+		the provided example in
+		https://github.com/intelops/go-common/blob/main/examples/iam/iam.go`)
+	}
+	orySdkClient := iamConn.newOrySdk(*iamConn.OryUrl)
+	if orySdkClient == nil {
+		return errors.New("ory client creation failed and its nil")
+	}
+	iamConn.OryClient = orySdkClient
+	return nil
+}
+func WithCerbosCreds(cerbosUrl, cerbosUsername, cerbosPassword string) IamConnOptions {
+	return func(iamConn *ClientsAndConfigs) {
+		iamConn.CerbosUrl = &cerbosUrl
+		iamConn.CerbosUsername = &cerbosUsername
+		iamConn.CerbosPassword = &cerbosPassword
+	}
+}
+func (iamConn *ClientsAndConfigs) IntializeCerbosSdk() error {
+	if iamConn.CerbosUrl == nil {
+		return errors.New(`please add CerbosUrl,CerbosUsername and CerbosPassword using
+		Func WithCerbosCreds(cerbosUrl, cerbosUsername, cerbosPassword string) before
+		calling InitializeCerbosSdk() for More info refer
+		the provided example in
+		https://github.com/intelops/go-common/blob/main/examples/iam/iam.go`)
+	}
+	cli, err := cerbos.New(*iamConn.CerbosUrl, cerbos.WithPlaintext())
+	if err != nil {
+		return errors.New(fmt.Sprintf("unable to create cerbos client %v", err))
+	}
+	iamConn.CerbosClient = cli
+	return nil
+}
 func newIAMClient(iamaddress string, opts ...grpc.DialOption) (*IAMClient, error) {
 	conn, err := grpc.Dial(iamaddress, opts...)
 	if err != nil {
@@ -72,14 +136,16 @@ func newIAMClient(iamaddress string, opts ...grpc.DialOption) (*IAMClient, error
 	}
 	client := cmpb.NewCommonModuleClient(conn)
 	cerbosclient := cerbospb.NewCerbosModuleServiceClient(conn)
+	interceptorclient := interceptorpb.NewCommonInterceptorServiceClient(conn)
 	return &IAMClient{
-		IC: client,
-		CC: cerbosclient,
+		IC:          client,
+		CC:          cerbosclient,
+		Interceptor: interceptorclient,
 	}, nil
 }
 
 func WithIamAddress(iamaddress string) IamConnOptions {
-	return func(iamConn *IamConn) {
+	return func(iamConn *ClientsAndConfigs) {
 		client, err := newIAMClient(iamaddress, iamConn.GrpcDialOpts...)
 		if err != nil {
 			iamConn.Logger.Fatalf("Error creating IAM client: %v", err)
@@ -87,10 +153,14 @@ func WithIamAddress(iamaddress string) IamConnOptions {
 		iamConn.IAMClient = client
 	}
 }
-
-func NewIamConn(opts ...IamConnOptions) *IamConn {
+func WithInterceptorYamlPath(path string) IamConnOptions {
+	return func(iamconn *ClientsAndConfigs) {
+		iamconn.InterceptorYamlPath = path
+	}
+}
+func NewIamConn(opts ...IamConnOptions) *ClientsAndConfigs {
 	logger := logging.NewLogger()
-	iamConn := &IamConn{
+	iamConn := &ClientsAndConfigs{
 		Logger: logger,
 	}
 	for _, opt := range opts {
@@ -98,24 +168,34 @@ func NewIamConn(opts ...IamConnOptions) *IamConn {
 	}
 	return iamConn
 }
-
+func WithOryCreds(oryUrl, oryPat string) IamConnOptions {
+	return func(iamconn *ClientsAndConfigs) {
+		iamconn.OryUrl = &oryUrl
+		iamconn.OryPat = &oryPat
+	}
+}
 func WithGrpcDialOption(grpcOpts ...grpc.DialOption) IamConnOptions {
-	return func(iamConn *IamConn) {
+	return func(iamConn *ClientsAndConfigs) {
 		iamConn.GrpcDialOpts = grpcOpts
 	}
 }
 
 func WithIamYamlPath(path string) IamConnOptions {
-	return func(iamConn *IamConn) {
+	return func(iamConn *ClientsAndConfigs) {
 		iamConn.IamYamlPath = path
 	}
 }
+func WithScope(scope string) IamConnOptions {
+	return func(iamConn *ClientsAndConfigs) {
+		iamConn.Scope = &scope
+	}
+}
 func WithCerbosYamlPath(path string) IamConnOptions {
-	return func(iamConn *IamConn) {
+	return func(iamConn *ClientsAndConfigs) {
 		iamConn.CerbosYamlPath = path
 	}
 }
-func (iamConn *IamConn) verifyVersion() (string, bool, error) {
+func (iamConn *ClientsAndConfigs) verifyVersion() (string, bool, error) {
 	config := &ActionRolePayload{}
 	err := iamConn.readConfig(config)
 	if err != nil {
@@ -148,7 +228,7 @@ func (iamConn *IamConn) verifyVersion() (string, bool, error) {
 	}
 }
 
-func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
+func (iamConn *ClientsAndConfigs) readConfig(config *ActionRolePayload) error {
 	// Read the file location from an environment variable
 	fileLocation := iamConn.IamYamlPath
 	if fileLocation == "" {
@@ -170,7 +250,7 @@ func (iamConn *IamConn) readConfig(config *ActionRolePayload) error {
 	return nil
 }
 
-func (iamConn *IamConn) readCerbosConfig(config *Policies) error {
+func (iamConn *ClientsAndConfigs) readCerbosConfig(config *Policies) error {
 	fileLocation := iamConn.CerbosYamlPath
 	if fileLocation == "" {
 		return errors.New("file location for cerbos policy is not found")
@@ -188,7 +268,7 @@ func (iamConn *IamConn) readCerbosConfig(config *Policies) error {
 	return nil
 }
 
-func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
+func (iamConn *ClientsAndConfigs) UpdateActionRoles(ctx context.Context) error {
 	config := &ActionRolePayload{}
 	err := iamConn.readConfig(config)
 	if err != nil {
@@ -201,35 +281,21 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 		return errors.New("no metadata found in context")
 	}
 
-	// Extract specific metadata values
-	oryURLs := md["ory_url"]
-	oauthTokens := md["oauth_token"]
-	oryPATs := md["ory_pat"]
-
-	// Check if the values exist and assign them
-	var oryURL, oauthToken, oryPAT string
-	if len(oryURLs) > 0 {
-		oryURL = oryURLs[0]
-	} else {
-		return errors.New("ory_url not found in metadata")
-	}
-
-	if len(oauthTokens) > 0 {
-		oauthToken = oauthTokens[0]
-	} else {
+	oauthTokens, ok := md["oauth_token"]
+	if !ok {
 		return errors.New("oauth_token not found in metadata")
 	}
 
-	if len(oryPATs) > 0 {
-		oryPAT = oryPATs[0]
-	} else {
-		return errors.New("ory_pat not found in metadata")
+	if iamConn.OryPat == nil {
+		return errors.New(`please add ory Url and OryPat using
+		Func WithOryCreds(oryUrl, oryPat string) before
+		calling UpdateActionRoles() for More info refer
+		the provided example in
+		https://github.com/intelops/go-common/blob/main/examples/iam/iam.go`)
 	}
-
-	OryCli := iamConn.newOrySdk(oryURL)
-	oryAuthedContext := context.WithValue(ctx, ory.ContextAccessToken, oryPAT)
+	oryAuthedContext := context.WithValue(ctx, ory.ContextAccessToken, *iamConn.OryPat)
 	// Introspect the OAuth token to get the ClientId
-	introspectionResponse, _, err := OryCli.OAuth2Api.IntrospectOAuth2Token(oryAuthedContext).Token(oauthToken).Execute()
+	introspectionResponse, _, err := iamConn.OryClient.OAuth2Api.IntrospectOAuth2Token(oryAuthedContext).Token(oauthTokens[0]).Execute()
 	if err != nil {
 		return err
 	}
@@ -239,7 +305,7 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 	clientId := *introspectionResponse.ClientId
 
 	// Fetch the client details using the ClientId
-	clientDetails, _, err := OryCli.OAuth2Api.GetOAuth2Client(oryAuthedContext, clientId).Execute()
+	clientDetails, _, err := iamConn.OryClient.OAuth2Api.GetOAuth2Client(oryAuthedContext, clientId).Execute()
 	if err != nil {
 		return err
 	}
@@ -332,7 +398,7 @@ func (iamConn *IamConn) UpdateActionRoles(ctx context.Context) error {
 	return nil
 }
 
-func (iamConn *IamConn) newOrySdk(oryURL string) *ory.APIClient {
+func (iamConn *ClientsAndConfigs) newOrySdk(oryURL string) *ory.APIClient {
 	config := ory.NewConfiguration()
 	config.Servers = ory.ServerConfigurations{{
 		URL: oryURL,
@@ -341,7 +407,7 @@ func (iamConn *IamConn) newOrySdk(oryURL string) *ory.APIClient {
 	return ory.NewAPIClient(config)
 }
 
-func (iamConn *IamConn) RegisterCerbosResourcePolicies(ctx context.Context) error {
+func (iamConn *ClientsAndConfigs) RegisterCerbosResourcePolicies(ctx context.Context) error {
 	config := &Policies{}
 	err := iamConn.readCerbosConfig(config)
 	if err != nil {
@@ -352,30 +418,19 @@ func (iamConn *IamConn) RegisterCerbosResourcePolicies(ctx context.Context) erro
 	if !ok {
 		return errors.New("no metadata found in context")
 	}
-	oryURLs := md["ory_url"]
-	oauthTokens := md["oauth_token"]
-	oryPATs := md["ory_pat"]
-	var oryURL, oauthToken, oryPAT string
-	if len(oryURLs) > 0 {
-		oryURL = oryURLs[0]
-	} else {
-		return errors.New("ory_url not found in metadata")
-	}
-
-	if len(oauthTokens) > 0 {
-		oauthToken = oauthTokens[0]
-	} else {
+	oauthTokens, ok := md["oauth_token"]
+	if !ok {
 		return errors.New("oauth_token not found in metadata")
 	}
-
-	if len(oryPATs) > 0 {
-		oryPAT = oryPATs[0]
-	} else {
-		return errors.New("ory_pat not found in metadata")
+	if iamConn.OryPat == nil {
+		return errors.New(`please add ory Url and OryPat using
+		Func WithOryCreds(oryUrl, oryPat string) before
+		calling UpdateActionRoles() for More info refer
+		the provided example in
+		https://github.com/intelops/go-common/blob/main/examples/iam/iam.go`)
 	}
-	OryCli := iamConn.newOrySdk(oryURL)
-	oryAuthedContext := context.WithValue(ctx, ory.ContextAccessToken, oryPAT)
-	introspectionResponse, _, err := OryCli.OAuth2Api.IntrospectOAuth2Token(oryAuthedContext).Token(oauthToken).Execute()
+	oryAuthedContext := context.WithValue(ctx, ory.ContextAccessToken, *iamConn.OryPat)
+	introspectionResponse, _, err := iamConn.OryClient.OAuth2Api.IntrospectOAuth2Token(oryAuthedContext).Token(oauthTokens[0]).Execute()
 	if err != nil {
 		return err
 	}
@@ -384,7 +439,7 @@ func (iamConn *IamConn) RegisterCerbosResourcePolicies(ctx context.Context) erro
 	}
 	clientId := *introspectionResponse.ClientId
 
-	clientDetails, _, err := OryCli.OAuth2Api.GetOAuth2Client(oryAuthedContext, clientId).Execute()
+	clientDetails, _, err := iamConn.OryClient.OAuth2Api.GetOAuth2Client(oryAuthedContext, clientId).Execute()
 	if err != nil {
 		return err
 	}
@@ -433,4 +488,210 @@ func (iamConn *IamConn) RegisterCerbosResourcePolicies(ctx context.Context) erro
 		}
 	}
 	return nil
+}
+
+func (iamConn *ClientsAndConfigs) authorize(ctx context.Context, accessToken string) (context.Context, error) {
+	if iamConn.OryPat == nil {
+		return ctx, errors.New(`please add ory Url and OryPat using
+		Func WithOryCreds(oryUrl, oryPat string) before
+		calling authorize() for More info refer
+		the provided example in
+		https://github.com/intelops/go-common/blob/main/examples/iam/iam.go`)
+	}
+	ctx = context.WithValue(ctx, ory.ContextAccessToken, *iamConn.OryPat)
+	sessionInfo, _, err := iamConn.OryClient.IdentityApi.GetSession(ctx, accessToken).Expand([]string{"Identity"}).Execute()
+	if err != nil {
+		iamConn.Logger.Errorf("Error occurred while getting session info for session id: %s: %v", accessToken, err)
+		return ctx, status.Errorf(codes.Unauthenticated, "Failed to introspect session id - %v", err)
+	}
+	iamConn.Logger.Infof("session: %s", sessionInfo.Id)
+	if !sessionInfo.GetActive() {
+		iamConn.Logger.Errorf("Error occurred while getting session info for session id: %s", accessToken)
+		return ctx, status.Error(codes.Unauthenticated, "session id is not active")
+	}
+	ctx = context.WithValue(ctx, Key("SESSION_ID"), sessionInfo.Id)
+	ctx = context.WithValue(ctx, Key("ORY_ID"), sessionInfo.GetIdentity().Id)
+	return ctx, nil
+}
+
+func (iamConn *ClientsAndConfigs) getOrgIdFromContext(ctx context.Context) (*string, error) {
+	md, err := iamConn.getMetadataFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	orgid := md.Get("organisationid")
+	if len(orgid) == 0 {
+		iamConn.Logger.Error("Missing 'organisationid' in the provided metadata context , This context should be provided from the frontfacing interface.")
+		return nil, status.Error(codes.Unauthenticated, "Missing 'organisationid' in the provided metadata context, Consider adding 'organisationid'")
+	}
+	return &orgid[0], nil
+
+}
+
+func (iamConn *ClientsAndConfigs) getMetadataFromContext(ctx context.Context) (metadata.MD, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		iamConn.Logger.Error("Failed to get metadata from context")
+		return nil, status.Error(codes.Unauthenticated, "Failed to get metadata from context")
+	}
+	return md, nil
+}
+
+func (iamConn *ClientsAndConfigs) getTokenFromContext(ctx context.Context) (string, error) {
+	md, err := iamConn.getMetadataFromContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	bearerToken := md.Get(authorizationHeader)
+	if len(bearerToken) == 0 {
+		iamConn.Logger.Error("No access token provided")
+		return "", status.Error(codes.Unauthenticated, "No access token provided")
+	}
+	splitToken := strings.Split(bearerToken[0], " ")
+	if len(splitToken) != 2 || splitToken[0] != bearerTokenPrefix {
+		iamConn.Logger.Error("Invalid access token")
+		return "", status.Error(codes.Unauthenticated, "Invalid access token")
+	}
+	return splitToken[1], nil
+}
+
+func (iamConn *ClientsAndConfigs) readInterceptorConfig(config *InterceptorConfig) error {
+	fileLocation := iamConn.InterceptorYamlPath
+	if fileLocation == "" {
+		return errors.New("file location for cerbos policy is not found")
+	}
+	file, err := os.Open(fileLocation)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	decoder := yaml.NewDecoder(file)
+	err = decoder.Decode(config)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (iamConn *ClientsAndConfigs) UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	iamConn.Logger.Info("func UnaryInterceptor invoked")
+	iamConn.Logger.Infof("called the method:  %v", info.FullMethod)
+	defer iamConn.Logger.Info("func UnaryInterceptor exited")
+
+	config := &InterceptorConfig{}
+	err := iamConn.readInterceptorConfig(config)
+	if err != nil {
+		iamConn.Logger.Errorf("Error occurred while reading config file: %v", err)
+		st := status.New(codes.Internal, "Error occurred while reading config file")
+		return nil, st.Err()
+	}
+
+	if contains(config.Exclude, info.FullMethod) {
+		return handler(ctx, req)
+	}
+	if contains(config.Authenticate, info.FullMethod) {
+		accessToken, err := iamConn.getTokenFromContext(ctx)
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while getting session id from context: %v", err)
+			st := status.New(codes.Unauthenticated, "Error occurred while getting session id from context")
+			return nil, st.Err()
+		}
+
+		ctx, err = iamConn.authorize(ctx, accessToken)
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while authorizing the session id from context: %s: %v", accessToken, err)
+			st := status.New(codes.PermissionDenied, "Error occurred while authorizing the session id from context")
+			return nil, st.Err()
+		}
+
+		return handler(ctx, req)
+	}
+
+	if contains(config.AuthenticateAuthorize, info.FullMethod) {
+		// If the method is in the AuthenticateAuthorize list, check if the session is active and perform authorization logic
+		accessToken, err := iamConn.getTokenFromContext(ctx)
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while getting session id from context: %v", err)
+			st := status.New(codes.Unauthenticated, "Error occurred while getting session id from context")
+			return nil, st.Err()
+		}
+
+		ctx, err = iamConn.authorize(ctx, accessToken)
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while authorizing the session id from context: %s: %v", accessToken, err)
+			st := status.New(codes.PermissionDenied, "Error occurred while authorizing the session id from context")
+			return nil, st.Err()
+		}
+		// Get the metadata from the incoming context
+		oryid, err := iamConn.getOryIDFromContext(ctx)
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while getting ory id from context: %v", err)
+			st := status.New(codes.Internal, "Error occurred while getting ory id from context")
+			return nil, st.Err()
+		}
+
+		orgid, err := iamConn.getOrgIdFromContext(ctx)
+		if err != nil {
+			iamConn.Logger.Errorf("Error occurred while getting org id from context: %v", err)
+			st := status.New(codes.Internal, "Error occurred while getting org id from context")
+			return nil, st.Err()
+		}
+		actionsResponse, err := iamConn.IAMClient.Interceptor.GetActionsWithOryidOrgid(ctx, &interceptorpb.GetActionsPayload{Oryid: oryid,
+			Orgid: *orgid})
+		if err != nil {
+			st := status.New(codes.Internal, "Error occurred while getting actions associated with user in organization using IAM client")
+			return nil, st.Err()
+		}
+		actions := actionsResponse.Actions
+		principal := cerbos.NewPrincipal(actionsResponse.Email, "iam")
+		input := strings.TrimPrefix(info.FullMethod, "/")
+		input = strings.ReplaceAll(input, "/", "-")
+		input = strings.ReplaceAll(input, ".", "-")
+		if iamConn.Scope == nil {
+			st := status.New(codes.Internal, `please add Scope using
+			WithScope before
+		using Interceptor for More info refer
+		the provided example in
+		https://github.com/intelops/go-common/blob/main/examples/iam/iam.go`)
+			return nil, st.Err()
+		}
+		r := cerbos.NewResource(input, actionsResponse.Email).WithScope(*iamConn.Scope)
+		allowed := false
+		for _, action := range actions {
+			allowed, err = iamConn.CerbosClient.IsAllowed(context.Background(), principal, r, action)
+			if err != nil {
+				iamConn.Logger.Info("Error occurred while checking is allowed or not. " +
+					fmt.Sprintf("\nError - %s", err.Error()),
+				)
+				return nil, err
+			}
+
+			if allowed {
+				break
+			}
+		}
+		if allowed {
+			return handler(ctx, req)
+		} else {
+			return nil, fmt.Errorf("not allowed")
+		}
+	}
+	return handler(ctx, req)
+}
+
+func contains(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+func (iamConn *ClientsAndConfigs) getOryIDFromContext(ctx context.Context) (string, error) {
+	oryID := ctx.Value(Key("ORY_ID"))
+	if oryID == nil {
+		return "", status.Error(codes.Unauthenticated, "Failed to get ory id from context")
+	}
+	return oryID.(string), nil
 }

@@ -24,7 +24,14 @@ func main() {
 		cm.WithIamAddress("localhost:3001"),
 		cm.WithIamYamlPath("provide the yaml location here"), // Ensure to provide the correct path to your YAML configuration
 		cm.WithCerbosYamlPath("provide the cerbos yaml location here"),
+		cm.WithOryCreds("oryUrl", "orypat_token"),
+		cm.WithScope("scope is the service name"),
+		cm.WithCerbosCreds("cerbosUrl", "cerbosUsername", "cerbosPassword"),
 	)
+
+	if err := iamConn.InitializeOrySdk(); err != nil {
+		log.Fatalf("Failed to initialize Cerbos Sdk: %v", err)
+	}
 	ctx := context.Background()
 	md := metadata.Pairs("oauth_token", "dummytoken")
 	newCtx := metadata.NewOutgoingContext(ctx, md)
