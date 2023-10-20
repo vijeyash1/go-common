@@ -30,6 +30,9 @@ func main() {
 	)
 
 	if err := iamConn.InitializeOrySdk(); err != nil {
+		log.Fatalf("Failed to initialize Ory Sdk: %v", err)
+	}
+	if err := iamConn.IntializeCerbosSdk(); err != nil {
 		log.Fatalf("Failed to initialize Cerbos Sdk: %v", err)
 	}
 	ctx := context.Background()
